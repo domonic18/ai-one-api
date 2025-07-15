@@ -45,6 +45,22 @@ func relayHelper(c *gin.Context, relayMode int) *model.ErrorWithStatusCode {
 func Relay(c *gin.Context) {
 	ctx := c.Request.Context()
 	relayMode := relaymode.GetByPath(c.Request.URL.Path)
+	
+	// Log request headers including X-User-ID and other header information
+	headers := c.Request.Header
+	headerInfo := "Request Headers: "
+	for key, values := range headers {
+		headerInfo += fmt.Sprintf("%s: %v | ", key, values)
+	}
+	
+	// Specifically log X-User-ID if present
+	userIDHeader := c.GetHeader("X-User-ID")
+	if userIDHeader != "" {
+		logger.Infof(ctx, "X-User-ID: %s", userIDHeader)
+	}
+	
+	logger.Infof(ctx, headerInfo)
+	
 	if config.DebugEnabled {
 		requestBody, _ := common.GetRequestBody(c)
 		logger.Debugf(ctx, "request body: %s", string(requestBody))
