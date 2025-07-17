@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common"
@@ -45,22 +46,43 @@ func relayHelper(c *gin.Context, relayMode int) *model.ErrorWithStatusCode {
 func Relay(c *gin.Context) {
 	ctx := c.Request.Context()
 	relayMode := relaymode.GetByPath(c.Request.URL.Path)
-	
-	// Log request headers including X-User-ID and other header information
+
+	// Log all request headers in a structured format
 	headers := c.Request.Header
 	headerInfo := "Request Headers: "
 	for key, values := range headers {
-		headerInfo += fmt.Sprintf("%s: %v | ", key, values)
+		headerInfo += fmt.Sprintf("%s: [%s] | ", key, strings.Join(values, ", "))
 	}
-	
-	// Specifically log X-User-ID if present
+
+	// Log key headers individually for easier filtering
 	userIDHeader := c.GetHeader("X-User-ID")
 	if userIDHeader != "" {
-		logger.Infof(ctx, "X-User-ID: %s", userIDHeader)
+		logger.Infof(ctx, "Header X-User-ID: %s", userIDHeader)
 	}
-	
+
+	authorization := c.GetHeader("Authorization")
+	if authorization != "" {
+		// Log authorization header safely (first 20 chars only)
+		maskedAuth := authorization
+		if len(maskedAuth) > 20 {
+			maskedAuth = maskedAuth[:20] + "..."
+		}
+		logger.Infof(ctx, "Header Authorization: %s", maskedAuth)
+	}
+
+	contentType := c.GetHeader("Content-Type")
+	if contentType != "" {
+		logger.Infof(ctx, "Header Content-Type: %s", contentType)
+	}
+
+	userAgent := c.GetHeader("User-Agent")
+	if userAgent != "" {
+		logger.Infof(ctx, "Header User-Agent: %s", userAgent)
+	}
+
+	// Log all headers in one line
 	logger.Infof(ctx, headerInfo)
-	
+
 	if config.DebugEnabled {
 		requestBody, _ := common.GetRequestBody(c)
 		logger.Debugf(ctx, "request body: %s", string(requestBody))
