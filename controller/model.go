@@ -2,6 +2,9 @@ package controller
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common/ctxkey"
 	"github.com/songquanpeng/one-api/model"
@@ -9,10 +12,9 @@ import (
 	"github.com/songquanpeng/one-api/relay/adaptor/openai"
 	"github.com/songquanpeng/one-api/relay/apitype"
 	"github.com/songquanpeng/one-api/relay/channeltype"
+	"github.com/songquanpeng/one-api/relay/constant"
 	"github.com/songquanpeng/one-api/relay/meta"
 	relaymodel "github.com/songquanpeng/one-api/relay/model"
-	"net/http"
-	"strings"
 )
 
 // https://platform.openai.com/docs/api-reference/models/list
@@ -62,6 +64,18 @@ func init() {
 		Group:              nil,
 		IsBlocking:         false,
 	})
+
+	// 添加smart_select智能选择模型
+	models = append(models, OpenAIModels{
+		Id:         constant.SmartSelect,
+		Object:     "model",
+		Created:    1626777600,
+		OwnedBy:    "oneapi",
+		Permission: permission,
+		Root:       constant.SmartSelect,
+		Parent:     nil,
+	})
+
 	// https://platform.openai.com/docs/models/model-endpoint-compatibility
 	for i := 0; i < apitype.Dummy; i++ {
 		if i == apitype.AIProxyLibrary {
@@ -170,6 +184,40 @@ func ListModels(c *gin.Context) {
 
 func RetrieveModel(c *gin.Context) {
 	modelId := c.Param("model")
+
+	// 特殊处理smart_select模型
+	if modelId == constant.SmartSelect {
+		permission := []OpenAIModelPermission{
+			{
+				Id:                 "modelperm-" + constant.SmartSelect,
+				Object:             "model_permission",
+				Created:            1626777600,
+				AllowCreateEngine:  true,
+				AllowSampling:      true,
+				AllowLogprobs:      true,
+				AllowSearchIndices: false,
+				AllowView:          true,
+				AllowFineTuning:    false,
+				Organization:       "*",
+				Group:              nil,
+				IsBlocking:         false,
+			},
+		}
+
+		smartSelectModel := OpenAIModels{
+			Id:         constant.SmartSelect,
+			Object:     "model",
+			Created:    1626777600,
+			OwnedBy:    "oneapi",
+			Permission: permission,
+			Root:       constant.SmartSelect,
+			Parent:     nil,
+		}
+
+		c.JSON(200, smartSelectModel)
+		return
+	}
+
 	if model, ok := modelsMap[modelId]; ok {
 		c.JSON(200, model)
 	} else {

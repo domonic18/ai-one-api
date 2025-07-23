@@ -24,6 +24,11 @@ func GetRequestBody(c *gin.Context) ([]byte, error) {
 	return requestBody.([]byte), nil
 }
 
+// GetRequestBodyReader 将字节切片转换为request.Body可用的io.ReadCloser
+func GetRequestBodyReader(bodyBytes []byte) io.ReadCloser {
+	return io.NopCloser(bytes.NewBuffer(bodyBytes))
+}
+
 func UnmarshalBodyReusable(c *gin.Context, v any) error {
 	requestBody, err := GetRequestBody(c)
 	if err != nil {
