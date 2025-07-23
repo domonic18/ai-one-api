@@ -95,9 +95,13 @@ func SmartModelSelection() func(c *gin.Context) {
 			return
 		}
 
-		// 关键修复：同时更新上下文中的RequestModel值
+		// 关键修复1：同时更新上下文中的RequestModel值
 		// 这样Distribute中间件就会使用替换后的模型名称而不是原始的smart_select
 		c.Set(ctxkey.RequestModel, config.ModelName)
+
+		// 关键修复2：更新缓存的请求体内容
+		// 这样后续的UnmarshalBodyReusable调用就会读取到修改后的内容
+		c.Set(ctxkey.KeyRequestBody, newBodyBytes)
 
 		c.Request.Body = common.GetRequestBodyReader(newBodyBytes)
 		c.Next()
