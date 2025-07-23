@@ -12,7 +12,6 @@ import (
 	"github.com/songquanpeng/one-api/relay/adaptor/openai"
 	"github.com/songquanpeng/one-api/relay/apitype"
 	"github.com/songquanpeng/one-api/relay/channeltype"
-	"github.com/songquanpeng/one-api/relay/constant"
 	"github.com/songquanpeng/one-api/relay/meta"
 	relaymodel "github.com/songquanpeng/one-api/relay/model"
 )
@@ -63,17 +62,6 @@ func init() {
 		Organization:       "*",
 		Group:              nil,
 		IsBlocking:         false,
-	})
-
-	// 添加smart_select智能选择模型
-	models = append(models, OpenAIModels{
-		Id:         constant.SmartSelect,
-		Object:     "model",
-		Created:    1626777600,
-		OwnedBy:    "oneapi",
-		Permission: permission,
-		Root:       constant.SmartSelect,
-		Parent:     nil,
 	})
 
 	// https://platform.openai.com/docs/models/model-endpoint-compatibility
@@ -185,52 +173,20 @@ func ListModels(c *gin.Context) {
 func RetrieveModel(c *gin.Context) {
 	modelId := c.Param("model")
 
-	// 特殊处理smart_select模型
-	if modelId == constant.SmartSelect {
-		permission := []OpenAIModelPermission{
-			{
-				Id:                 "modelperm-" + constant.SmartSelect,
-				Object:             "model_permission",
-				Created:            1626777600,
-				AllowCreateEngine:  true,
-				AllowSampling:      true,
-				AllowLogprobs:      true,
-				AllowSearchIndices: false,
-				AllowView:          true,
-				AllowFineTuning:    false,
-				Organization:       "*",
-				Group:              nil,
-				IsBlocking:         false,
-			},
-		}
-
-		smartSelectModel := OpenAIModels{
-			Id:         constant.SmartSelect,
-			Object:     "model",
-			Created:    1626777600,
-			OwnedBy:    "oneapi",
-			Permission: permission,
-			Root:       constant.SmartSelect,
-			Parent:     nil,
-		}
-
-		c.JSON(200, smartSelectModel)
+	if model, ok := modelsMap[modelId]; ok {
+		c.JSON(200, model)
 		return
 	}
 
-	if model, ok := modelsMap[modelId]; ok {
-		c.JSON(200, model)
-	} else {
-		Error := relaymodel.Error{
-			Message: fmt.Sprintf("The model '%s' does not exist", modelId),
-			Type:    "invalid_request_error",
-			Param:   "model",
-			Code:    "model_not_found",
-		}
-		c.JSON(200, gin.H{
-			"error": Error,
-		})
+	openAIError := relaymodel.Error{
+		Message: fmt.Sprintf("The model '%s' does not exist", modelId),
+		Type:    "invalid_request_error",
+		Param:   "model",
+		Code:    "model_not_found",
 	}
+	c.JSON(http.StatusNotFound, gin.H{
+		"error": openAIError,
+	})
 }
 
 func GetUserAvailableModels(c *gin.Context) {

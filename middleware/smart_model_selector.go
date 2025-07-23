@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common"
@@ -12,7 +13,8 @@ import (
 )
 
 // SmartModelSelection 智能模型选择中间件
-// 如果请求中的模型名称为"smart_select"，则根据请求头中的X-User-ID查询Redis获取用户配置的模型信息
+// 通过HTTP头 X-Smart-Model-Selection 控制是否启用智能选择
+// 如果启用且Redis中有用户配置，则使用配置的模型；否则使用请求中的原始模型作为兜底
 func SmartModelSelection() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 检查是否启用了Redis
@@ -21,7 +23,15 @@ func SmartModelSelection() func(c *gin.Context) {
 			return
 		}
 
-		// 判断请求体中的模型是否为smart_select
+		// 检查是否启用智能模型选择
+		smartSelectionHeader := c.GetHeader(constant.SmartModelSelectionHeader)
+		if !isSmartSelectionEnabled(smartSelectionHeader) {
+			// 如果未启用智能选择，直接处理下一个中间件
+			c.Next()
+			return
+		}
+
+		// 获取请求体
 		var requestBody map[string]interface{}
 		bodyBytes, err := common.GetRequestBody(c)
 		if err != nil {
@@ -34,21 +44,22 @@ func SmartModelSelection() func(c *gin.Context) {
 			return
 		}
 
-		modelName, ok := requestBody["model"].(string)
-		if !ok || modelName != constant.SmartSelect {
-			// 如果不是智能选择模型，直接处理下一个中间件
+		// 获取原始模型名称作为兜底
+		originalModel, ok := requestBody["model"].(string)
+		if !ok {
+			logger.Warnf(c.Request.Context(), "智能模型选择: 请求体中未找到model字段")
 			c.Request.Body = common.GetRequestBodyReader(bodyBytes)
 			c.Next()
 			return
 		}
 
 		ctx := c.Request.Context()
-		logger.Debugf(ctx, "检测到智能模型选择请求: %s", constant.SmartSelect)
+		logger.Debugf(ctx, "检测到智能模型选择请求，原始模型: %s", originalModel)
 
 		// 从请求头获取用户ID
 		userID := c.GetHeader(constant.UserIdHeader)
 		if userID == "" {
-			logger.Warnf(ctx, "使用智能模型选择功能时未提供用户ID")
+			logger.Warnf(ctx, "使用智能模型选择功能时未提供用户ID，使用原始模型: %s", originalModel)
 			c.Request.Body = common.GetRequestBodyReader(bodyBytes)
 			c.Next()
 			return
@@ -60,50 +71,70 @@ func SmartModelSelection() func(c *gin.Context) {
 		// 获取用户配置的模型信息
 		config, err := selector.GetUserModelConfig(userID)
 		if err != nil {
-			logger.Warnf(ctx, "获取用户模型配置失败: %v", err)
+			logger.Infof(ctx, "未找到用户模型配置或获取失败，使用原始模型 %s 作为兜底: %v", originalModel, err)
+			// 使用原始模型作为兜底，不需要修改请求体
 			c.Request.Body = common.GetRequestBodyReader(bodyBytes)
 			c.Next()
 			return
 		}
 
-		// 替换模型名称
+		// 替换模型名称为配置的模型
 		requestBody["model"] = config.ModelName
 
 		// 合并模型参数
 		if len(config.Parameters) > 0 {
-			params, paramsExist := requestBody["parameters"].(map[string]interface{})
-			if !paramsExist {
-				// 如果请求中没有parameters字段，则直接使用配置中的parameters
-				requestBody["parameters"] = config.Parameters
-			} else {
-				// 如果请求中有parameters字段，则合并配置中的parameters
-				for k, v := range config.Parameters {
-					params[k] = v
-				}
-				requestBody["parameters"] = params
-			}
+			mergeModelParameters(requestBody, config.Parameters)
 		}
 
-		logger.Infof(ctx, "智能模型选择: 将模型 %s 替换为 %s", constant.SmartSelect, config.ModelName)
+		logger.Infof(ctx, "智能模型选择: 将模型 %s 替换为 %s", originalModel, config.ModelName)
 
 		// 更新请求体
 		newBodyBytes, err := json.Marshal(requestBody)
 		if err != nil {
-			logger.Errorf(ctx, "序列化更新后的请求体失败: %v", err)
+			logger.Errorf(ctx, "序列化更新后的请求体失败，使用原始模型: %v", err)
 			c.Request.Body = common.GetRequestBodyReader(bodyBytes)
 			c.Next()
 			return
 		}
 
-		// 关键修复1：同时更新上下文中的RequestModel值
-		// 这样Distribute中间件就会使用替换后的模型名称而不是原始的smart_select
+		// 更新上下文中的RequestModel值
 		c.Set(ctxkey.RequestModel, config.ModelName)
 
-		// 关键修复2：更新缓存的请求体内容
-		// 这样后续的UnmarshalBodyReusable调用就会读取到修改后的内容
+		// 更新缓存的请求体内容
 		c.Set(ctxkey.KeyRequestBody, newBodyBytes)
 
 		c.Request.Body = common.GetRequestBodyReader(newBodyBytes)
 		c.Next()
+	}
+}
+
+// isSmartSelectionEnabled 检查是否启用智能模型选择
+// 支持多种格式: true, 1, on, enabled, yes (不区分大小写)
+func isSmartSelectionEnabled(headerValue string) bool {
+	if headerValue == "" {
+		return false
+	}
+
+	value := strings.ToLower(strings.TrimSpace(headerValue))
+	return value == "true" || value == "1" || value == "on" || value == "enabled" || value == "yes"
+}
+
+// mergeModelParameters 合并模型参数
+func mergeModelParameters(requestBody map[string]interface{}, configParams map[string]interface{}) {
+	// 检查请求体中是否已有参数
+	if existingParams, exists := requestBody["parameters"]; exists {
+		if params, ok := existingParams.(map[string]interface{}); ok {
+			// 合并参数，配置的参数优先级更高
+			for k, v := range configParams {
+				params[k] = v
+			}
+			requestBody["parameters"] = params
+		} else {
+			// 如果现有参数格式不正确，直接使用配置参数
+			requestBody["parameters"] = configParams
+		}
+	} else {
+		// 如果请求中没有parameters字段，直接使用配置参数
+		requestBody["parameters"] = configParams
 	}
 }

@@ -85,8 +85,3 @@ func (s *SmartModelSelector) DeleteUserModelConfig(userID string) error {
 	logger.SysLog(fmt.Sprintf("成功删除用户 %s 的智能模型选择配置", userID))
 	return nil
 }
-
-// IsSmartSelectModel 检查是否为智能选择模型
-func IsSmartSelectModel(modelName string) bool {
-	return modelName == constant.SmartSelect
-}
