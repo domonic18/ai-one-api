@@ -8,171 +8,105 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
+
+	"github.com/songquanpeng/one-api/common"
+	"github.com/songquanpeng/one-api/relay/model_selection"
 )
 
-// 测试配置
-type TestConfig struct {
-	ServerURL string
-	Token     string
-	UserID    string
-	ModelName string
-	Temp      float64
-	MaxTokens int
-	TopP      float64
-}
-
-// 请求结构
 type ChatRequest struct {
-	Model       string        `json:"model"`
-	Messages    []ChatMessage `json:"messages"`
-	Temperature *float64      `json:"temperature,omitempty"`
-	MaxTokens   *int          `json:"max_tokens,omitempty"`
-	TopP        *float64      `json:"top_p,omitempty"`
-	Stream      bool          `json:"stream"`
+	Model    string    `json:"model"`
+	Messages []Message `json:"messages"`
+	Stream   bool      `json:"stream"`
 }
 
-type ChatMessage struct {
+type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// 响应结构
 type ChatResponse struct {
-	ID      string `json:"id"`
-	Object  string `json:"object"`
-	Created int64  `json:"created"`
-	Model   string `json:"model"`
-	Choices []struct {
-		Index   int `json:"index"`
-		Message struct {
-			Role    string `json:"role"`
-			Content string `json:"content"`
-		} `json:"message"`
-		FinishReason string `json:"finish_reason"`
-	} `json:"choices"`
-	Usage struct {
-		PromptTokens     int `json:"prompt_tokens"`
-		CompletionTokens int `json:"completion_tokens"`
-		TotalTokens      int `json:"total_tokens"`
-	} `json:"usage"`
+	ID      string     `json:"id"`
+	Object  string     `json:"object"`
+	Model   string     `json:"model"`
+	Choices []Choice   `json:"choices"`
+	Usage   TokenUsage `json:"usage"`
+}
+
+type Choice struct {
+	Index   int     `json:"index"`
+	Message Message `json:"message"`
+}
+
+type TokenUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
 }
 
 func main() {
-	// 解析命令行参数
 	var (
-		serverURL = flag.String("server", "http://localhost:3000", "OneAPI服务器地址")
-		token     = flag.String("token", "", "sk-v1oRcgk6BrXGd0MN61D0Ad09D2E841D7B9B1078328Da270b")
-		userID    = flag.String("user", "29be822a-b330-47f3-8dbf-90dab7c3c189", "用户ID")
-		modelName = flag.String("model", "smart_select", "要配置的模型名称")
-		temp      = flag.Float64("temp", 0.7, "温度参数")
-		maxTokens = flag.Int("max-tokens", 2000, "最大token数")
-		topP      = flag.Float64("top-p", 0.9, "top_p参数")
-		action    = flag.String("action", "test", "操作: setup, test, cleanup")
+		action = flag.String("action", "test", "操作类型: setup, test, test-fallback, cleanup")
+		token  = flag.String("token", "", "API Token")
+		userID = flag.String("user", "", "用户ID")
+		model  = flag.String("model", "deepseek-chat", "模型名称")
+		smart  = flag.String("smart", "true", "是否启用智能选择")
 	)
 	flag.Parse()
 
-	if *token == "" {
-		fmt.Println("❌ 错误: 必须提供API Token")
-		fmt.Println("用法: go run test_smart_model_selection.go -token YOUR_TOKEN")
-		os.Exit(1)
-	}
-
-	config := &TestConfig{
-		ServerURL: *serverURL,
-		Token:     *token,
-		UserID:    *userID,
-		ModelName: *modelName,
-		Temp:      *temp,
-		MaxTokens: *maxTokens,
-		TopP:      *topP,
-	}
+	// 初始化Redis连接
+	common.InitRedisClient()
 
 	switch *action {
 	case "setup":
-		err := setupSmartModelConfig(config)
-		if err != nil {
-			fmt.Printf("❌ 设置智能模型配置失败: %v\n", err)
-			os.Exit(1)
-		}
+		setupUserConfig(*userID, *model)
 	case "test":
-		err := testSmartModelSelection(config)
-		if err != nil {
-			fmt.Printf("❌ 测试智能模型选择失败: %v\n", err)
-			os.Exit(1)
-		}
+		testSmartModelSelection(*token, *userID, *model, *smart)
+	case "test-fallback":
+		testFallbackMechanism(*token, *userID, *model, *smart)
 	case "cleanup":
-		err := cleanupSmartModelConfig(config)
-		if err != nil {
-			fmt.Printf("❌ 清理智能模型配置失败: %v\n", err)
-			os.Exit(1)
-		}
+		cleanupUserConfig(*userID)
 	default:
-		fmt.Printf("❌ 未知操作: %s\n", *action)
-		fmt.Println("支持的操作: setup, test, cleanup")
+		fmt.Println("无效的操作类型，支持: setup, test, test-fallback, cleanup")
 		os.Exit(1)
 	}
 }
 
-// 设置智能模型配置
-func setupSmartModelConfig(config *TestConfig) error {
-	fmt.Println("🔧 开始设置智能模型配置...")
+func setupUserConfig(userID, modelName string) {
+	if userID == "" || modelName == "" {
+		fmt.Println("❌ 用户ID和模型名称不能为空")
+		os.Exit(1)
+	}
 
-	// 构建请求体
-	requestBody := map[string]interface{}{
-		"user_id":    config.UserID,
-		"model_name": config.ModelName,
-		"parameters": map[string]interface{}{
-			"temperature": config.Temp,
-			"max_tokens":  config.MaxTokens,
-			"top_p":       config.TopP,
+	selector := model_selection.NewSmartModelSelector()
+	config := &model_selection.UserModelConfig{
+		ModelName: modelName,
+		Parameters: map[string]interface{}{
+			"temperature": 0.7,
+			"max_tokens":  2048,
 		},
-		"priority": 1,
 	}
 
-	jsonData, err := json.Marshal(requestBody)
+	err := selector.SetUserModelConfig(userID, config)
 	if err != nil {
-		return fmt.Errorf("序列化请求体失败: %w", err)
+		fmt.Printf("❌ 设置用户配置失败: %v\n", err)
+		os.Exit(1)
 	}
 
-	// 发送请求
-	url := fmt.Sprintf("%s/api/smart-model/", config.ServerURL)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("创建请求失败: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+config.Token)
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("发送请求失败: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("读取响应失败: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("设置配置失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
-	}
-
-	fmt.Printf("✅ 成功为用户 %s 设置智能模型配置: %s\n", config.UserID, config.ModelName)
-	return nil
+	fmt.Printf("✅ 成功设置用户 %s 的模型配置为 %s\n", userID, modelName)
 }
 
-// 测试智能模型选择
-func testSmartModelSelection(config *TestConfig) error {
+func testSmartModelSelection(token, userID, originalModel, smartEnabled string) {
+	if token == "" || userID == "" {
+		fmt.Println("❌ Token和用户ID不能为空")
+		os.Exit(1)
+	}
+
 	fmt.Println("🧪 开始测试智能模型选择功能...")
 
-	// 构建聊天请求
-	request := ChatRequest{
-		Model: "smart_select", // 使用智能选择模型
-		Messages: []ChatMessage{
+	// 构建请求
+	req := ChatRequest{
+		Model: originalModel,
+		Messages: []Message{
 			{
 				Role:    "user",
 				Content: "你好，请简单介绍一下自己",
@@ -181,101 +115,190 @@ func testSmartModelSelection(config *TestConfig) error {
 		Stream: false,
 	}
 
-	jsonData, err := json.Marshal(request)
+	reqBody, _ := json.Marshal(req)
+
+	// 创建HTTP请求
+	httpReq, err := http.NewRequest("POST", "http://localhost:3000/v1/chat/completions", bytes.NewBuffer(reqBody))
 	if err != nil {
-		return fmt.Errorf("序列化请求体失败: %w", err)
+		fmt.Printf("❌ 创建请求失败: %v\n", err)
+		os.Exit(1)
 	}
+
+	// 设置请求头
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("X-User-ID", userID)
+	httpReq.Header.Set("X-Smart-Model-Selection", smartEnabled) // 新增：智能选择控制头
+
+	// 打印调试信息
+	fmt.Printf("📡 请求URL: %s\n", httpReq.URL.String())
+	fmt.Printf("📡 请求头 X-User-ID: %s\n", userID)
+	fmt.Printf("📡 请求头 X-Smart-Model-Selection: %s\n", smartEnabled)
+	fmt.Printf("📡 请求体: %s\n", string(reqBody))
 
 	// 发送请求
-	url := fmt.Sprintf("%s/v1/chat/completions", config.ServerURL)
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
 	if err != nil {
-		return fmt.Errorf("创建请求失败: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+config.Token)
-	req.Header.Set("X-User-ID", config.UserID) // 关键：设置用户ID
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("发送请求失败: %w", err)
+		fmt.Printf("❌ 发送请求失败: %v\n", err)
+		os.Exit(1)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	fmt.Printf("📡 请求状态码: %d\n", resp.StatusCode)
+
+	// 读取响应
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("读取响应失败: %w", err)
+		fmt.Printf("❌ 读取响应失败: %v\n", err)
+		os.Exit(1)
 	}
 
-	fmt.Printf("📡 请求状态码: %d\n", resp.StatusCode)
-	fmt.Printf("📡 请求URL: %s\n", url)
-	fmt.Printf("📡 请求头 X-User-ID: %s\n", config.UserID)
-	fmt.Printf("📡 请求体: %s\n", string(jsonData))
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("请求失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
+	if resp.StatusCode != 200 {
+		fmt.Printf("❌ 请求失败，状态码: %d\n", resp.StatusCode)
+		fmt.Printf("📋 错误详情: %s\n", string(respBody))
+		os.Exit(1)
 	}
 
 	// 解析响应
 	var chatResp ChatResponse
-	err = json.Unmarshal(body, &chatResp)
+	err = json.Unmarshal(respBody, &chatResp)
 	if err != nil {
-		return fmt.Errorf("解析响应失败: %w", err)
+		fmt.Printf("❌ 解析响应失败: %v\n", err)
+		fmt.Printf("📋 原始响应: %s\n", string(respBody))
+		os.Exit(1)
 	}
 
-	fmt.Printf("✅ 智能模型选择测试成功！\n")
+	fmt.Println("✅ 智能模型选择测试成功！")
 	fmt.Printf("📋 响应模型: %s\n", chatResp.Model)
 	fmt.Printf("📋 响应ID: %s\n", chatResp.ID)
 	fmt.Printf("📋 Token使用情况: 输入=%d, 输出=%d, 总计=%d\n",
-		chatResp.Usage.PromptTokens,
-		chatResp.Usage.CompletionTokens,
-		chatResp.Usage.TotalTokens)
+		chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens, chatResp.Usage.TotalTokens)
 
 	if len(chatResp.Choices) > 0 {
 		fmt.Printf("📋 AI回复: %s\n", chatResp.Choices[0].Message.Content)
 	}
 
-	// 验证模型是否被正确替换
-	if chatResp.Model == config.ModelName {
-		fmt.Printf("✅ 模型替换验证成功: smart_select -> %s\n", config.ModelName)
+	// 验证智能选择是否生效
+	if smartEnabled == "true" {
+		// 获取用户配置的模型
+		selector := model_selection.NewSmartModelSelector()
+		config, err := selector.GetUserModelConfig(userID)
+		if err == nil && chatResp.Model == config.ModelName {
+			fmt.Printf("✅ 智能选择验证成功: 使用了配置的模型 %s\n", config.ModelName)
+		} else if chatResp.Model == originalModel {
+			fmt.Printf("⚠️  使用了兜底模型: %s (可能Redis中无配置)\n", originalModel)
+		} else {
+			fmt.Printf("⚠️  模型替换验证异常: 期望配置模型或兜底模型 %s, 实际 %s\n", originalModel, chatResp.Model)
+		}
 	} else {
-		fmt.Printf("⚠️  模型替换验证失败: 期望 %s, 实际 %s\n", config.ModelName, chatResp.Model)
+		// 未启用智能选择，应该使用原始模型
+		if chatResp.Model == originalModel {
+			fmt.Printf("✅ 非智能选择验证成功: 使用了原始模型 %s\n", originalModel)
+		} else {
+			fmt.Printf("⚠️  非智能选择验证失败: 期望 %s, 实际 %s\n", originalModel, chatResp.Model)
+		}
 	}
-
-	return nil
 }
 
-// 清理智能模型配置
-func cleanupSmartModelConfig(config *TestConfig) error {
-	fmt.Println("🧹 开始清理智能模型配置...")
-
-	// 发送删除请求
-	url := fmt.Sprintf("%s/api/smart-model/%s", config.ServerURL, config.UserID)
-	req, err := http.NewRequest("DELETE", url, nil)
-	if err != nil {
-		return fmt.Errorf("创建请求失败: %w", err)
+func testFallbackMechanism(token, userID, originalModel, smartEnabled string) {
+	if token == "" || userID == "" {
+		fmt.Println("❌ Token和用户ID不能为空")
+		os.Exit(1)
 	}
 
-	req.Header.Set("Authorization", "Bearer "+config.Token)
+	fmt.Println("🧪 开始测试兜底机制...")
 
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	// 先清除用户配置，模拟Redis中无配置的情况
+	selector := model_selection.NewSmartModelSelector()
+	selector.DeleteUserModelConfig(userID)
+
+	// 构建请求
+	req := ChatRequest{
+		Model: originalModel,
+		Messages: []Message{
+			{
+				Role:    "user",
+				Content: "测试兜底机制，这应该使用原始模型",
+			},
+		},
+		Stream: false,
+	}
+
+	reqBody, _ := json.Marshal(req)
+
+	// 创建HTTP请求
+	httpReq, err := http.NewRequest("POST", "http://localhost:3000/v1/chat/completions", bytes.NewBuffer(reqBody))
 	if err != nil {
-		return fmt.Errorf("发送请求失败: %w", err)
+		fmt.Printf("❌ 创建请求失败: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 设置请求头
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+token)
+	httpReq.Header.Set("X-User-ID", userID)
+	httpReq.Header.Set("X-Smart-Model-Selection", smartEnabled)
+
+	fmt.Printf("📡 测试兜底机制 - 原始模型: %s\n", originalModel)
+	fmt.Printf("📡 智能选择状态: %s\n", smartEnabled)
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		fmt.Printf("❌ 发送请求失败: %v\n", err)
+		os.Exit(1)
 	}
 	defer resp.Body.Close()
 
-	body, err := io.ReadAll(resp.Body)
+	fmt.Printf("📡 请求状态码: %d\n", resp.StatusCode)
+
+	// 读取响应
+	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("读取响应失败: %w", err)
+		fmt.Printf("❌ 读取响应失败: %v\n", err)
+		os.Exit(1)
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("删除配置失败，状态码: %d, 响应: %s", resp.StatusCode, string(body))
+	if resp.StatusCode != 200 {
+		fmt.Printf("❌ 请求失败，状态码: %d\n", resp.StatusCode)
+		fmt.Printf("📋 错误详情: %s\n", string(respBody))
+		os.Exit(1)
 	}
 
-	fmt.Printf("✅ 成功删除用户 %s 的智能模型配置\n", config.UserID)
-	return nil
+	// 解析响应
+	var chatResp ChatResponse
+	err = json.Unmarshal(respBody, &chatResp)
+	if err != nil {
+		fmt.Printf("❌ 解析响应失败: %v\n", err)
+		fmt.Printf("📋 原始响应: %s\n", string(respBody))
+		os.Exit(1)
+	}
+
+	// 验证兜底机制
+	if chatResp.Model == originalModel {
+		fmt.Printf("✅ 兜底机制测试成功: 使用了原始模型 %s\n", originalModel)
+	} else {
+		fmt.Printf("❌ 兜底机制测试失败: 期望 %s, 实际 %s\n", originalModel, chatResp.Model)
+	}
+
+	fmt.Printf("📋 Token使用情况: 输入=%d, 输出=%d, 总计=%d\n",
+		chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens, chatResp.Usage.TotalTokens)
+}
+
+func cleanupUserConfig(userID string) {
+	if userID == "" {
+		fmt.Println("❌ 用户ID不能为空")
+		os.Exit(1)
+	}
+
+	selector := model_selection.NewSmartModelSelector()
+	err := selector.DeleteUserModelConfig(userID)
+	if err != nil {
+		fmt.Printf("❌ 清理用户配置失败: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("✅ 成功清理用户 %s 的配置\n", userID)
 }
