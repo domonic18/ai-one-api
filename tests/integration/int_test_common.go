@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"os"
+	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
@@ -14,6 +14,7 @@ import (
 	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/model"
 	"github.com/songquanpeng/one-api/router"
+	"github.com/songquanpeng/one-api/tests/fixtures"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -66,6 +67,11 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 	model.DB = db
 	model.LOG_DB = db // 确保日志数据库也被设置
 
+	// 插入预定义测试数据
+	if err := fixtures.InsertTestData(db); err != nil {
+		panic("failed to insert test data: " + err.Error())
+	}
+
 	// 设置完整的路由（使用空的buildFS）
 	var buildFS embed.FS
 	router.SetRouter(r, buildFS)
@@ -73,7 +79,7 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 	return r, db
 }
 
-// 创建测试用户
+// 创建测试用户（保留原有函数以兼容现有测试）
 func createTestUser(db *gorm.DB, username, password string, role int) *model.User {
 	hashedPassword, _ := common.Password2Hash(password)
 	user := &model.User{
@@ -102,11 +108,15 @@ func createTestNormalUser(db *gorm.DB) *model.User {
 // 创建测试令牌
 func createTestToken(db *gorm.DB, userId int, name string) *model.Token {
 	token := &model.Token{
-		UserId:      userId,
-		Name:        name,
-		Key:         "test-key-" + name,
-		Status:      1,
-		RemainQuota: 10000,
+		UserId:         userId,
+		Key:            "test-token-" + name,
+		Name:           name,
+		Status:         1,
+		RemainQuota:    1000,
+		UnlimitedQuota: false,
+		Models:         nil,
+		CreatedTime:    time.Now().Unix(),
+		AccessedTime:   time.Now().Unix(),
 	}
 	db.Create(token)
 	return token
@@ -115,13 +125,15 @@ func createTestToken(db *gorm.DB, userId int, name string) *model.Token {
 // 创建测试渠道
 func createTestChannel(db *gorm.DB, name, key string) *model.Channel {
 	channel := &model.Channel{
-		Type:    1,
-		Key:     key,
-		Name:    name,
-		Status:  1,
-		Group:   "default",
-		Models:  "gpt-3.5-turbo,gpt-4",
-		Balance: 100.0,
+		Type:        1, // OpenAI
+		Key:         key,
+		Name:        name,
+		Status:      1,
+		Weight:      uintPtr(100),
+		Group:       "default",
+		Models:      "gpt-3.5-turbo",
+		Balance:     100.0,
+		CreatedTime: time.Now().Unix(),
 	}
 	db.Create(channel)
 	return channel
@@ -130,10 +142,18 @@ func createTestChannel(db *gorm.DB, name, key string) *model.Channel {
 // 创建测试日志
 func createTestLog(db *gorm.DB, userId int, logType int, quota int, modelName string) *model.Log {
 	log := &model.Log{
-		UserId:    userId,
-		Type:      logType,
-		Quota:     quota,
-		ModelName: modelName,
+		UserId:           userId,
+		Type:             logType,
+		Username:         "testuser",
+		TokenName:        "test-token",
+		ModelName:        modelName,
+		Quota:            quota,
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		ChannelId:        1,
+		ElapsedTime:      1000,
+		Content:          "测试日志",
+		CreatedAt:        time.Now().Unix(),
 	}
 	db.Create(log)
 	return log
@@ -146,10 +166,10 @@ func sendRequest(r *gin.Engine, method, path string, payload interface{}, header
 		body, _ = json.Marshal(payload)
 	}
 
-	req, _ := http.NewRequest(method, path, bytes.NewBuffer(body))
+	req := httptest.NewRequest(method, path, bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 
-	// 设置自定义请求头
+	// 设置自定义headers
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
@@ -159,7 +179,7 @@ func sendRequest(r *gin.Engine, method, path string, payload interface{}, header
 	return w
 }
 
-// 登录用户并返回session
+// 用户登录辅助函数
 func loginUser(r *gin.Engine, username, password string) *httptest.ResponseRecorder {
 	payload := map[string]interface{}{
 		"username": username,
@@ -175,5 +195,10 @@ func getUserSession(r *gin.Engine, username, password string) *httptest.Response
 
 // 清理测试数据
 func cleanupTestData(db *gorm.DB) {
-	db.Migrator().DropTable(&model.User{}, &model.Token{}, &model.Channel{}, &model.Log{}, &model.Ability{}, &model.Option{}, &model.Redemption{})
+	fixtures.ClearTestData(db)
+}
+
+// 辅助函数：返回uint指针
+func uintPtr(u uint) *uint {
+	return &u
 }
