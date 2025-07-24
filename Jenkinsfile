@@ -27,8 +27,34 @@ pipeline {
                     echo "Git 分支: ${GIT_BRANCH}"
                     
                     // 检查必要工具
-                    sh 'go version'
-                    sh 'which make'
+                    try {
+                        sh 'which go || echo "Go 未安装"'
+                        sh 'go version || echo "Go 版本检查失败"'
+                    } catch (Exception e) {
+                        echo "❌ Go 环境检查失败: ${e.getMessage()}"
+                        echo "请确保 Jenkins 服务器已安装 Go 1.21+"
+                        error "Go 环境未正确配置"
+                    }
+                    
+                    try {
+                        sh 'which make || echo "Make 未安装"'
+                        sh 'make --version || echo "Make 版本检查失败"'
+                    } catch (Exception e) {
+                        echo "❌ Make 环境检查失败: ${e.getMessage()}"
+                        echo "请确保 Jenkins 服务器已安装 Make"
+                        error "Make 环境未正确配置"
+                    }
+                    
+                    try {
+                        sh 'which git || echo "Git 未安装"'
+                        sh 'git --version || echo "Git 版本检查失败"'
+                    } catch (Exception e) {
+                        echo "❌ Git 环境检查失败: ${e.getMessage()}"
+                        echo "请确保 Jenkins 服务器已安装 Git"
+                        error "Git 环境未正确配置"
+                    }
+                    
+                    echo "✅ 环境检查通过"
                 }
             }
         }
