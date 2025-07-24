@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: oneapi-mysql-test
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: oneapi_test
+      MYSQL_USER: testuser
+      MYSQL_PASSWORD: testpass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_test_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: oneapi-redis-test
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_test_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oneapi-app-test
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SQL_DSN: testuser:testpass@tcp(mysql:3306)/oneapi_test?charset=utf8mb4\u0026parseTime=True\u0026loc=Local
+      REDIS_CONN_STRING: redis:6379
+      SESSION_SECRET: test-secret-key
+      SYNC_FREQUENCY: 60
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./tests:/app/tests
+    command: ["go", "test", "-v", "./tests/..."]
+
+volumes:
+  mysql_test_data:
+  redis_test_data:
