@@ -3,6 +3,10 @@ package model
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/common/env"
@@ -13,9 +17,6 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"os"
-	"strings"
-	"time"
 )
 
 var DB *gorm.DB
@@ -87,7 +88,8 @@ func openPostgreSQL(dsn string) (*gorm.DB, error) {
 		DSN:                  dsn,
 		PreferSimpleProtocol: true, // disables implicit prepared statement usage
 	}), &gorm.Config{
-		PrepareStmt: true, // precompile SQL
+		PrepareStmt:                              true,  // precompile SQL
+		DisableForeignKeyConstraintWhenMigrating: false, // 启用外键约束创建
 	})
 }
 
@@ -95,7 +97,8 @@ func openMySQL(dsn string) (*gorm.DB, error) {
 	logger.SysLog("using MySQL as database")
 	common.UsingMySQL = true
 	return gorm.Open(mysql.Open(dsn), &gorm.Config{
-		PrepareStmt: true, // precompile SQL
+		PrepareStmt:                              true,  // precompile SQL
+		DisableForeignKeyConstraintWhenMigrating: false, // 启用外键约束创建
 	})
 }
 
@@ -104,7 +107,8 @@ func openSQLite() (*gorm.DB, error) {
 	common.UsingSQLite = true
 	dsn := fmt.Sprintf("%s?_busy_timeout=%d", common.SQLitePath, common.SQLiteBusyTimeout)
 	return gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		PrepareStmt: true, // precompile SQL
+		PrepareStmt:                              true,  // precompile SQL
+		DisableForeignKeyConstraintWhenMigrating: false, // 启用外键约束创建
 	})
 }
 
@@ -155,6 +159,9 @@ func migrateDB() error {
 		return err
 	}
 	if err = DB.AutoMigrate(&Log{}); err != nil {
+		return err
+	}
+	if err = DB.AutoMigrate(&ExtendedLog{}); err != nil {
 		return err
 	}
 	if err = DB.AutoMigrate(&Channel{}); err != nil {
