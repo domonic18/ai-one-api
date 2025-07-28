@@ -290,11 +290,16 @@ func InsertTestData(db *gorm.DB) error {
 
 // ClearTestData 清理测试数据
 func ClearTestData(db *gorm.DB) error {
+	// 按照外键依赖关系的逆序删除数据
 	tables := []interface{}{
-		&model.Log{},
-		&model.Channel{},
-		&model.Token{},
-		&model.User{},
+		&model.ExtendedLog{}, // 扩展日志表
+		&model.Log{},         // 日志表
+		&model.Redemption{},  // 兑换码表
+		&model.Ability{},     // 能力表
+		&model.Channel{},     // 渠道表
+		&model.Token{},       // 令牌表
+		&model.Option{},      // 选项表
+		&model.User{},        // 用户表
 	}
 
 	for _, table := range tables {

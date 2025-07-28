@@ -12,33 +12,43 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common"
+	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/model"
 	"github.com/songquanpeng/one-api/router"
 	"github.com/songquanpeng/one-api/tests/fixtures"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
 // 设置集成测试环境
 func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
-	// 初始化Redis客户端（禁用Redis）
-	common.RedisEnabled = false
+	// 设置测试环境变量
+	setupTestEnvironment()
 
-	// 禁用限流，避免测试时触发限流
-	os.Setenv("GLOBAL_WEB_RATE_LIMIT", "0")
-	os.Setenv("GLOBAL_API_RATE_LIMIT", "0")
+	// 直接设置配置变量来禁用限流
+	config.DebugEnabled = true
+	config.GlobalWebRateLimitNum = 0
+	config.GlobalApiRateLimitNum = 0
 
-	// 设置测试数据库
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	// 初始化Redis客户端
+	err := common.InitRedisClient()
 	if err != nil {
-		panic("failed to connect database")
+		panic("failed to initialize Redis client: " + err.Error())
 	}
 
-	// 设置SQLite模式
-	common.UsingSQLite = true
+	// 连接MySQL数据库
+	db, err := connectTestMySQL()
+	if err != nil {
+		panic("failed to connect to test MySQL database: " + err.Error())
+	}
+
+	// 设置MySQL模式
+	common.UsingMySQL = true
+	common.UsingSQLite = false
 
 	// 迁移所有表
 	model.DB = db
+	model.LOG_DB = db
 	err = db.AutoMigrate(
 		&model.User{},
 		&model.Token{},
@@ -47,10 +57,14 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 		&model.Ability{},
 		&model.Option{},
 		&model.Redemption{},
+		&model.ExtendedLog{},
 	)
 	if err != nil {
-		panic("failed to migrate database")
+		panic("failed to migrate database: " + err.Error())
 	}
+
+	// 清理现有数据
+	cleanupTestData(db)
 
 	// 设置Gin为测试模式
 	gin.SetMode(gin.TestMode)
@@ -62,10 +76,6 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 	// 设置session中间件
 	store := cookie.NewStore([]byte("test-secret"))
 	r.Use(sessions.Sessions("one-api", store))
-
-	// 设置数据库连接
-	model.DB = db
-	model.LOG_DB = db // 确保日志数据库也被设置
 
 	// 插入预定义测试数据
 	if err := fixtures.InsertTestData(db); err != nil {
@@ -79,17 +89,68 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 	return r, db
 }
 
+// 设置测试环境变量
+func setupTestEnvironment() {
+	// 启用DEBUG模式来禁用限流
+	os.Setenv("DEBUG", "true")
+
+	// 禁用限流，避免测试时触发限流
+	os.Setenv("GLOBAL_WEB_RATE_LIMIT", "0")
+	os.Setenv("GLOBAL_API_RATE_LIMIT", "0")
+
+	// 设置MySQL连接字符串
+	if os.Getenv("SQL_DSN") == "" {
+		os.Setenv("SQL_DSN", "testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local")
+	}
+
+	// 设置Redis连接字符串
+	if os.Getenv("REDIS_CONN_STRING") == "" {
+		os.Setenv("REDIS_CONN_STRING", "redis://localhost:6379")
+	}
+
+	// 设置同步频率
+	if os.Getenv("SYNC_FREQUENCY") == "" {
+		os.Setenv("SYNC_FREQUENCY", "60")
+	}
+
+	// 设置会话密钥
+	if os.Getenv("SESSION_SECRET") == "" {
+		os.Setenv("SESSION_SECRET", "test-secret-key")
+	}
+}
+
+// 连接测试MySQL数据库
+func connectTestMySQL() (*gorm.DB, error) {
+	dsn := os.Getenv("SQL_DSN")
+	return gorm.Open(mysql.Open(dsn), &gorm.Config{
+		PrepareStmt:                              true,
+		DisableForeignKeyConstraintWhenMigrating: false,
+	})
+}
+
 // 创建测试用户（保留原有函数以兼容现有测试）
 func createTestUser(db *gorm.DB, username, password string, role int) *model.User {
 	hashedPassword, _ := common.Password2Hash(password)
+	// 生成较短的access_token避免MySQL字段长度限制
+	accessToken := "test-" + username
+	if len(accessToken) > 32 {
+		accessToken = accessToken[:32]
+	}
+
+	// 生成较短的aff_code
+	affCode := "aff-" + username
+	if len(affCode) > 8 {
+		affCode = affCode[:8]
+	}
+
 	user := &model.User{
 		Username:    username,
 		Password:    hashedPassword,
 		Status:      1,
 		Role:        role,
 		Quota:       10000,
-		AccessToken: "test-token-" + username,
-		AffCode:     "test-aff-" + username, // 为每个用户生成唯一的推荐码
+		AccessToken: accessToken,
+		AffCode:     affCode,
 	}
 	db.Create(user)
 	return user

@@ -3,6 +3,7 @@ package integration
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/songquanpeng/one-api/tests/fixtures"
@@ -125,7 +126,12 @@ func TestAuth_UserRegister(t *testing.T) {
 		assert.NoError(t, err)
 
 		assert.Equal(t, false, response["success"])
-		assert.Contains(t, response["message"], "UNIQUE constraint failed") // 修复期望的错误消息
+		// MySQL和SQLite的错误消息不同，检查是否包含重复相关的错误信息
+		errorMsg := response["message"].(string)
+		assert.True(t,
+			strings.Contains(errorMsg, "UNIQUE constraint failed") ||
+				strings.Contains(errorMsg, "Duplicate entry"),
+			"Expected duplicate error, got: %s", errorMsg)
 	})
 
 	t.Run("空用户名", func(t *testing.T) {

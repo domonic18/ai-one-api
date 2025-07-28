@@ -163,10 +163,13 @@ func InvalidateTeacherInfoCache(ctx context.Context, teacherId string) error {
 	return nil
 }
 
-// GetModelByTeacherId 根据老师ID获取应该使用的模型
-// 优先级：用户偏好 > 学科组默认 > 学校默认 > 全局默认
+// GetModelByTeacherId 根据老师ID获取推荐的模型
 func GetModelByTeacherId(ctx context.Context, teacherId string) (string, error) {
-	// 1. 获取用户模型配置
+	if teacherId == "" {
+		return "", fmt.Errorf("teacherId不能为空")
+	}
+
+	// 1. 获取用户模型偏好
 	userConfig, err := GetUserModelConfigWithCache(ctx, teacherId)
 	if err == nil && userConfig != nil && userConfig.ModelName != "" {
 		logger.Debugf(ctx, "使用用户偏好模型: teacherId=%s, model=%s", teacherId, userConfig.ModelName)
@@ -178,6 +181,12 @@ func GetModelByTeacherId(ctx context.Context, teacherId string) (string, error) 
 	if err != nil {
 		logger.Warnf(ctx, "获取老师信息失败: teacherId=%s, error=%v", teacherId, err)
 		return "", err
+	}
+
+	// 检查teacherInfo是否为nil
+	if teacherInfo == nil {
+		logger.Warnf(ctx, "老师信息为空: teacherId=%s", teacherId)
+		return "", fmt.Errorf("老师信息为空")
 	}
 
 	// 3. 获取学科组默认模型

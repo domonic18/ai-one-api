@@ -27,9 +27,9 @@ func IdentityAuth() gin.HandlerFunc {
 
 		// 3. 通过老师ID查找所属学科组和学校
 		teacherInfo, err := model.GetTeacherInfoWithCache(context.Background(), teacherId)
-		if err != nil {
+		if err != nil || teacherInfo == nil {
 			logger.Warnf(c, "获取老师信息失败: teacherId=%s, error=%v", teacherId, err)
-			// 如果获取失败，使用默认分组
+			// 如果获取失败或返回nil，使用默认分组
 			c.Set(ctxkey.Group, "default")
 			c.Next()
 			return
