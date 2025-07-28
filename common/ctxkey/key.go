@@ -20,6 +20,7 @@ const (
 	AvailableModels   = "available_models"
 	KeyRequestBody    = "key_request_body"
 	SystemPrompt      = "system_prompt"
+	LogId             = "log_id" // 日志ID
 
 	// 扩展日志相关上下文键
 	SchoolId    = "school_id"    // 学校ID

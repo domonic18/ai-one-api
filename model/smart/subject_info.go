@@ -1,0 +1,303 @@
+package smart
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/songquanpeng/one-api/common"
+	"github.com/songquanpeng/one-api/common/cache"
+	"github.com/songquanpeng/one-api/common/logger"
+)
+
+// SubjectInfo 学科组信息结构
+type SubjectInfo struct {
+	SubjectId    int    `json:"subject_id"`
+	SubjectName  string `json:"subject_name"`
+	SchoolId     int    `json:"school_id"`
+	SchoolName   string `json:"school_name"`
+	DefaultModel string `json:"default_model"`
+	GroupName    string `json:"group_name"`
+	CreatedAt    int64  `json:"created_at"`
+	UpdatedAt    int64  `json:"updated_at"`
+}
+
+// TeacherInfo 老师信息结构
+type TeacherInfo struct {
+	TeacherId   string `json:"teacher_id"`
+	TeacherName string `json:"teacher_name"`
+	SchoolId    int    `json:"school_id"`
+	SchoolName  string `json:"school_name"`
+	SubjectId   int    `json:"subject_id"`
+	SubjectName string `json:"subject_name"`
+	GroupName   string `json:"group_name"`
+	CreatedAt   int64  `json:"created_at"`
+	UpdatedAt   int64  `json:"updated_at"`
+}
+
+// 缓存相关常量
+const (
+	// 学科组信息缓存前缀
+	SubjectInfoCachePrefix = "subject_info:"
+	// 老师信息缓存前缀
+	TeacherInfoCachePrefix = "teacher_info:"
+	// 缓存时间（24小时）
+	DefaultCacheTTL = 24 * time.Hour
+)
+
+// GetSubjectInfoWithCache 获取学科组信息（带缓存）
+func GetSubjectInfoWithCache(ctx context.Context, subjectId int) (*SubjectInfo, error) {
+	if !common.RedisEnabled {
+		return nil, fmt.Errorf("Redis未启用")
+	}
+
+	// 1. 尝试从缓存管理器获取
+	cacheKey := fmt.Sprintf("%s%d", SubjectInfoCachePrefix, subjectId)
+	var info SubjectInfo
+
+	err := cache.Mgr.Get(ctx, cacheKey, &info)
+	if err == nil {
+		logger.Debugf(ctx, "学科组信息缓存命中: subjectId=%d", subjectId)
+		return &info, nil
+	}
+
+	// 2. 缓存未命中，从API获取
+	apiInfo, err := GetSubjectInfoFromAPI(ctx, subjectId)
+	if err != nil {
+		logger.Warnf(ctx, "从API获取学科组信息失败: subjectId=%d, error=%v", subjectId, err)
+		return nil, err
+	}
+
+	// 3. 使用缓存管理器更新缓存
+	if apiInfo != nil {
+		err = cache.Mgr.Set(ctx, cacheKey, apiInfo, DefaultCacheTTL)
+		if err != nil {
+			logger.Warnf(ctx, "设置学科组信息缓存失败: subjectId=%d, error=%v", subjectId, err)
+		} else {
+			logger.Debugf(ctx, "学科组信息已缓存: subjectId=%d, model=%s", subjectId, apiInfo.DefaultModel)
+		}
+	}
+
+	return apiInfo, nil
+}
+
+// GetSubjectInfoFromAPI 从课件平台API获取学科组信息
+func GetSubjectInfoFromAPI(ctx context.Context, subjectId int) (*SubjectInfo, error) {
+	// 模拟API调用，实际应该调用课件平台API
+	logger.Warnf(ctx, "GetSubjectInfoFromAPI未实现实际API调用: subjectId=%d", subjectId)
+
+	// 返回模拟数据
+	return &SubjectInfo{
+		SubjectId:    subjectId,
+		SubjectName:  fmt.Sprintf("学科组_%d", subjectId),
+		SchoolId:     1,
+		SchoolName:   "示例学校",
+		DefaultModel: "gpt-3.5-turbo",
+		GroupName:    "default",
+		CreatedAt:    time.Now().Unix(),
+		UpdatedAt:    time.Now().Unix(),
+	}, nil
+}
+
+// GetTeacherInfoWithCache 获取老师信息（带缓存）
+func GetTeacherInfoWithCache(ctx context.Context, teacherId string) (*TeacherInfo, error) {
+	if !common.RedisEnabled {
+		return nil, fmt.Errorf("Redis未启用")
+	}
+
+	// 1. 尝试从缓存管理器获取
+	cacheKey := fmt.Sprintf("%s%s", TeacherInfoCachePrefix, teacherId)
+	var info TeacherInfo
+
+	err := cache.Mgr.Get(ctx, cacheKey, &info)
+	if err == nil {
+		logger.Debugf(ctx, "老师信息缓存命中: teacherId=%s", teacherId)
+		return &info, nil
+	}
+
+	// 2. 缓存未命中，从API获取
+	apiInfo, err := GetTeacherInfoFromAPI(ctx, teacherId)
+	if err != nil {
+		logger.Warnf(ctx, "从API获取老师信息失败: teacherId=%s, error=%v", teacherId, err)
+		return nil, err
+	}
+
+	// 3. 使用缓存管理器更新缓存
+	if apiInfo != nil {
+		err = cache.Mgr.Set(ctx, cacheKey, apiInfo, DefaultCacheTTL)
+		if err != nil {
+			logger.Warnf(ctx, "设置老师信息缓存失败: teacherId=%s, error=%v", teacherId, err)
+		} else {
+			logger.Debugf(ctx, "老师信息已缓存: teacherId=%s, subjectId=%d", teacherId, apiInfo.SubjectId)
+		}
+	}
+
+	return apiInfo, nil
+}
+
+// GetTeacherInfoFromAPI 从课件平台API获取老师信息
+func GetTeacherInfoFromAPI(ctx context.Context, teacherId string) (*TeacherInfo, error) {
+	// 模拟API调用，实际应该调用课件平台API
+	logger.Warnf(ctx, "GetTeacherInfoFromAPI未实现实际API调用: teacherId=%s", teacherId)
+
+	// 返回nil表示未找到老师信息
+	return nil, nil
+}
+
+// InvalidateSubjectInfoCache 使指定学科组的信息缓存失效
+func InvalidateSubjectInfoCache(ctx context.Context, subjectId int) error {
+	if !common.RedisEnabled {
+		return fmt.Errorf("Redis未启用")
+	}
+
+	cacheKey := fmt.Sprintf("%s%d", SubjectInfoCachePrefix, subjectId)
+	err := cache.Mgr.Delete(ctx, cacheKey)
+	if err != nil {
+		logger.Warnf(ctx, "删除学科组信息缓存失败: subjectId=%d, error=%v", subjectId, err)
+		return err
+	}
+
+	logger.Debugf(ctx, "学科组信息缓存已删除: subjectId=%d", subjectId)
+	return nil
+}
+
+// InvalidateTeacherInfoCache 使指定老师的信息缓存失效
+func InvalidateTeacherInfoCache(ctx context.Context, teacherId string) error {
+	if !common.RedisEnabled {
+		return fmt.Errorf("Redis未启用")
+	}
+
+	cacheKey := fmt.Sprintf("%s%s", TeacherInfoCachePrefix, teacherId)
+	err := cache.Mgr.Delete(ctx, cacheKey)
+	if err != nil {
+		logger.Warnf(ctx, "删除老师信息缓存失败: teacherId=%s, error=%v", teacherId, err)
+		return err
+	}
+
+	logger.Debugf(ctx, "老师信息缓存已删除: teacherId=%s", teacherId)
+	return nil
+}
+
+// GetModelByTeacherId 根据老师ID获取推荐模型
+func GetModelByTeacherId(ctx context.Context, teacherId string) (string, error) {
+	if teacherId == "" {
+		return "", fmt.Errorf("teacherId不能为空")
+	}
+
+	// 1. 首先尝试获取用户模型配置（用户偏好）
+	userConfig, err := GetUserConfigWithCache(ctx, teacherId)
+	if err == nil && userConfig != nil && userConfig.ModelName != "" {
+		logger.Debugf(ctx, "使用用户偏好模型: teacherId=%s, model=%s", teacherId, userConfig.ModelName)
+		return userConfig.ModelName, nil
+	}
+
+	// 2. 获取老师信息，查找学科组默认模型
+	teacherInfo, err := GetTeacherInfoWithCache(ctx, teacherId)
+	if err != nil {
+		logger.Warnf(ctx, "获取老师信息失败: teacherId=%s, error=%v", teacherId, err)
+		return "", err
+	}
+
+	// 检查teacherInfo是否为nil
+	if teacherInfo == nil {
+		logger.Warnf(ctx, "老师信息为空: teacherId=%s", teacherId)
+		return "", fmt.Errorf("未找到老师信息: %s", teacherId)
+	}
+
+	// 3. 获取学科组信息
+	if teacherInfo.SubjectId > 0 {
+		subjectInfo, err := GetSubjectInfoWithCache(ctx, teacherInfo.SubjectId)
+		if err == nil && subjectInfo != nil && subjectInfo.DefaultModel != "" {
+			logger.Debugf(ctx, "使用学科组默认模型: teacherId=%s, subjectId=%d, model=%s",
+				teacherId, teacherInfo.SubjectId, subjectInfo.DefaultModel)
+			return subjectInfo.DefaultModel, nil
+		}
+	}
+
+	// 4. 返回全局默认模型
+	defaultModel := "gpt-3.5-turbo"
+	logger.Debugf(ctx, "使用全局默认模型: teacherId=%s, model=%s", teacherId, defaultModel)
+	return defaultModel, nil
+}
+
+// BatchInvalidateTeacherInfoCache 批量使老师信息缓存失效
+func BatchInvalidateTeacherInfoCache(ctx context.Context, teacherIds []string) error {
+	if len(teacherIds) == 0 {
+		return nil
+	}
+
+	if !common.RedisEnabled {
+		return fmt.Errorf("Redis未启用")
+	}
+
+	// 构建缓存键列表
+	cacheKeys := make([]string, len(teacherIds))
+	for i, teacherId := range teacherIds {
+		cacheKeys[i] = fmt.Sprintf("%s%s", TeacherInfoCachePrefix, teacherId)
+	}
+
+	// 使用缓存管理器批量删除
+	result := cache.Mgr.BatchDelete(ctx, cacheKeys)
+
+	if result.FailedCount > 0 {
+		logger.Warnf(ctx, "批量删除老师信息缓存部分失败: 成功=%d, 失败=%d",
+			result.SuccessCount, result.FailedCount)
+	}
+
+	logger.Debugf(ctx, "批量删除老师信息缓存完成: 成功=%d, 失败=%d",
+		result.SuccessCount, result.FailedCount)
+
+	return nil
+}
+
+// PreloadTeacherInfos 预加载老师信息到缓存
+func PreloadTeacherInfos(ctx context.Context, teacherIds []string) error {
+	if len(teacherIds) == 0 {
+		return nil
+	}
+
+	if !common.RedisEnabled {
+		return fmt.Errorf("Redis未启用")
+	}
+
+	// 构建缓存项列表
+	cacheItems := make([]cache.Item, 0)
+
+	for _, teacherId := range teacherIds {
+		// 从API获取老师信息
+		info, err := GetTeacherInfoFromAPI(ctx, teacherId)
+		if err != nil {
+			logger.Warnf(ctx, "预加载老师信息失败: teacherId=%s, error=%v", teacherId, err)
+			continue
+		}
+
+		if info != nil {
+			cacheItem := cache.Item{
+				Key:        fmt.Sprintf("%s%s", TeacherInfoCachePrefix, teacherId),
+				Value:      info,
+				Expiration: DefaultCacheTTL,
+				CreatedAt:  time.Now(),
+			}
+			cacheItems = append(cacheItems, cacheItem)
+		}
+	}
+
+	if len(cacheItems) > 0 {
+		// 批量设置缓存
+		result := cache.Mgr.BatchSet(ctx, cacheItems)
+
+		logger.Debugf(ctx, "预加载老师信息完成: 请求=%d, 成功=%d, 失败=%d",
+			len(teacherIds), result.SuccessCount, result.FailedCount)
+	}
+
+	return nil
+}
+
+// GetSubjectInfoCacheStats 获取学科组信息缓存统计
+func GetSubjectInfoCacheStats() *cache.Stats {
+	if cache.Mgr == nil {
+		return &cache.Stats{}
+	}
+
+	return cache.Mgr.GetStats()
+}

@@ -12,6 +12,7 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 
 	"github.com/songquanpeng/one-api/common"
+	"github.com/songquanpeng/one-api/common/cache"
 	"github.com/songquanpeng/one-api/common/client"
 	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/common/i18n"
@@ -19,6 +20,7 @@ import (
 	"github.com/songquanpeng/one-api/controller"
 	"github.com/songquanpeng/one-api/middleware"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/model/smart"
 	"github.com/songquanpeng/one-api/relay/adaptor/openai"
 	"github.com/songquanpeng/one-api/router"
 )
@@ -58,6 +60,18 @@ func main() {
 	err = common.InitRedisClient()
 	if err != nil {
 		logger.FatalLog("failed to initialize Redis: " + err.Error())
+	}
+
+	// Initialize Cache System
+	if common.RedisEnabled {
+		// 初始化缓存系统
+		cache.Init()
+
+		// 启动缓存监控
+		cache.MonitorInstance.StartMonitoring()
+
+		// 初始化智能模型选择包
+		smart.Init()
 	}
 
 	// Initialize options
