@@ -22,7 +22,7 @@ type UserConfig struct {
 // 缓存相关常量
 const (
 	// 用户模型配置缓存前缀
-	UserConfigCachePrefix = "user_model_config:"
+	UserConfigCachePrefix = "user_config:"
 	// 用户模型配置缓存时间（24小时）
 	UserConfigCacheTTL = 24 * time.Hour
 )
