@@ -123,6 +123,11 @@ var ValidThemes = map[string]bool{
 	"air":     true,
 }
 
+// 课件平台API配置
+var CoursewarePlatformBaseURL = env.String("COURSEWARE_PLATFORM_BASE_URL", "")
+var CoursewarePlatformAPIKey = env.String("COURSEWARE_PLATFORM_API_KEY", "")
+var CoursewarePlatformTimeout = env.Int("COURSEWARE_PLATFORM_TIMEOUT", 10) // 单位：秒
+
 // All duration's unit is seconds
 // Shouldn't larger then RateLimitKeyExpirationDuration
 var (

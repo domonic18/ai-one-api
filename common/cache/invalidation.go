@@ -6,9 +6,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/common/logger"
 )
+
+// 添加本地变量替代common.RedisEnabled
+var RedisEnabled bool
+
+// 在init函数中初始化
+func init() {
+	// 可以从环境变量或其他方式获取Redis状态
+	// 这里暂时设为true
+	RedisEnabled = true
+}
 
 // InvalidationManager 缓存失效管理器
 type InvalidationManager struct {
@@ -95,7 +104,7 @@ func (cim *InvalidationManager) cleanupExpiredRecords() {
 
 // InvalidateByPattern 根据模式失效缓存
 func (cim *InvalidationManager) InvalidateByPattern(ctx context.Context, pattern string) error {
-	if !common.RedisEnabled {
+	if !RedisEnabled {
 		return fmt.Errorf("Redis未启用")
 	}
 
@@ -135,7 +144,7 @@ func (cim *InvalidationManager) getKeysByPattern(ctx context.Context, pattern st
 
 // InvalidateByEvent 根据事件失效相关缓存
 func (cim *InvalidationManager) InvalidateByEvent(ctx context.Context, event InvalidationEvent) error {
-	if !common.RedisEnabled {
+	if !RedisEnabled {
 		return fmt.Errorf("Redis未启用")
 	}
 
@@ -194,7 +203,7 @@ func (cim *InvalidationManager) InvalidateRelatedCaches(ctx context.Context, obj
 
 // RefreshCache 刷新缓存（先失效再预热）
 func (cim *InvalidationManager) RefreshCache(ctx context.Context, cacheKey string, refreshFunc func() (interface{}, error), ttl time.Duration) error {
-	if !common.RedisEnabled {
+	if !RedisEnabled {
 		return fmt.Errorf("Redis未启用")
 	}
 
@@ -287,7 +296,7 @@ func (cim *InvalidationManager) ScheduledInvalidation(ctx context.Context, cache
 
 // ConditionalInvalidation 条件性失效缓存
 func (cim *InvalidationManager) ConditionalInvalidation(ctx context.Context, cacheKey string, condition func() bool) error {
-	if !common.RedisEnabled {
+	if !RedisEnabled {
 		return fmt.Errorf("Redis未启用")
 	}
 

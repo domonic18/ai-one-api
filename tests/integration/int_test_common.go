@@ -42,6 +42,9 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 	// 初始化HTTP客户端
 	client.Init()
 
+	// 初始化课件平台API客户端
+	client.InitCoursewareClient()
+
 	// 初始化Redis客户端
 	err := common.InitRedisClient()
 	if err != nil {
@@ -132,6 +135,10 @@ func setupTestEnvironment() {
 	if os.Getenv("REDIS_CONN_STRING") == "" {
 		os.Setenv("REDIS_CONN_STRING", "redis://localhost:6379")
 	}
+
+	// 设置课件平台API配置
+	os.Setenv("COURSEWARE_PLATFORM_BASE_URL", "http://localhost:8080")
+	os.Setenv("COURSEWARE_PLATFORM_API_KEY", "test-api-key")
 
 	// 设置同步频率
 	if os.Getenv("SYNC_FREQUENCY") == "" {

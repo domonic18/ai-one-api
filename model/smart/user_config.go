@@ -7,6 +7,7 @@ import (
 
 	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/common/cache"
+	"github.com/songquanpeng/one-api/common/client"
 	"github.com/songquanpeng/one-api/common/logger"
 )
 
@@ -63,16 +64,43 @@ func GetUserConfigWithCache(ctx context.Context, userId string) (*UserConfig, er
 
 // GetUserConfigFromAPI 从课件平台API获取用户模型配置
 func GetUserConfigFromAPI(ctx context.Context, userId string) (*UserConfig, error) {
-	// 模拟API调用，实际应该调用课件平台API
-	logger.Warnf(ctx, "GetUserConfigFromAPI未实现实际API调用: userId=%s", userId)
+	// 使用课件平台API客户端获取用户模型配置
+	coursewareClient := client.GetCoursewareClient()
+	if coursewareClient == nil {
+		logger.Warnf(ctx, "课件平台API客户端未初始化: userId=%s", userId)
+		return nil, fmt.Errorf("课件平台API客户端未初始化")
+	}
 
-	// 返回模拟数据
-	return &UserConfig{
-		UserId:    userId,
-		ModelName: "gpt-3.5-turbo", // 默认模型
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}, nil
+	// 调用API获取用户模型配置
+	apiConfig, err := coursewareClient.GetUserConfig(ctx, userId)
+	if err != nil {
+		logger.Warnf(ctx, "从API获取用户模型配置失败: userId=%s, error=%v", userId, err)
+		return nil, err
+	}
+
+	// 如果API返回空，则返回默认配置
+	if apiConfig == nil {
+		return &UserConfig{
+			UserId:    userId,
+			ModelName: "gpt-3.5-turbo", // 默认模型
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}, nil
+	}
+
+	// 转换为内部UserConfig结构
+	userConfig := &UserConfig{
+		UserId:     apiConfig.UserId,
+		ModelName:  apiConfig.ModelName,
+		Parameters: apiConfig.Parameters,
+		CreatedAt:  time.Unix(apiConfig.CreatedAt, 0),
+		UpdatedAt:  time.Unix(apiConfig.UpdatedAt, 0),
+	}
+
+	logger.Debugf(ctx, "从API获取用户模型配置成功: userId=%s, model=%s",
+		userId, userConfig.ModelName)
+
+	return userConfig, nil
 }
 
 // InvalidateUserConfigCache 使指定用户的模型配置缓存失效

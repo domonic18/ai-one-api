@@ -7,6 +7,7 @@ import (
 
 	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/common/cache"
+	"github.com/songquanpeng/one-api/common/client"
 	"github.com/songquanpeng/one-api/common/logger"
 )
 
@@ -83,20 +84,41 @@ func GetSubjectInfoWithCache(ctx context.Context, subjectId int) (*SubjectInfo, 
 
 // GetSubjectInfoFromAPI 从课件平台API获取学科组信息
 func GetSubjectInfoFromAPI(ctx context.Context, subjectId int) (*SubjectInfo, error) {
-	// 模拟API调用，实际应该调用课件平台API
-	logger.Warnf(ctx, "GetSubjectInfoFromAPI未实现实际API调用: subjectId=%d", subjectId)
+	// 使用课件平台API客户端获取学科组信息
+	coursewareClient := client.GetCoursewareClient()
+	if coursewareClient == nil {
+		logger.Warnf(ctx, "课件平台API客户端未初始化: subjectId=%d", subjectId)
+		return nil, fmt.Errorf("课件平台API客户端未初始化")
+	}
 
-	// 返回模拟数据
-	return &SubjectInfo{
-		SubjectId:    subjectId,
-		SubjectName:  fmt.Sprintf("学科组_%d", subjectId),
-		SchoolId:     1,
-		SchoolName:   "示例学校",
-		DefaultModel: "gpt-3.5-turbo",
-		GroupName:    "default",
-		CreatedAt:    time.Now().Unix(),
-		UpdatedAt:    time.Now().Unix(),
-	}, nil
+	// 调用API获取学科组信息
+	apiInfo, err := coursewareClient.GetSubjectInfo(ctx, subjectId)
+	if err != nil {
+		logger.Warnf(ctx, "从API获取学科组信息失败: subjectId=%d, error=%v", subjectId, err)
+		return nil, err
+	}
+
+	// 如果API返回空，则返回nil
+	if apiInfo == nil {
+		return nil, nil
+	}
+
+	// 转换为内部SubjectInfo结构
+	subjectInfo := &SubjectInfo{
+		SubjectId:    apiInfo.SubjectId,
+		SubjectName:  apiInfo.SubjectName,
+		SchoolId:     apiInfo.SchoolId,
+		SchoolName:   apiInfo.SchoolName,
+		DefaultModel: apiInfo.DefaultModel,
+		GroupName:    apiInfo.GroupName,
+		CreatedAt:    apiInfo.CreatedAt,
+		UpdatedAt:    apiInfo.UpdatedAt,
+	}
+
+	logger.Debugf(ctx, "从API获取学科组信息成功: subjectId=%d, schoolId=%d, defaultModel=%s",
+		subjectId, subjectInfo.SchoolId, subjectInfo.DefaultModel)
+
+	return subjectInfo, nil
 }
 
 // GetTeacherInfoWithCache 获取老师信息（带缓存）
@@ -137,11 +159,41 @@ func GetTeacherInfoWithCache(ctx context.Context, teacherId string) (*TeacherInf
 
 // GetTeacherInfoFromAPI 从课件平台API获取老师信息
 func GetTeacherInfoFromAPI(ctx context.Context, teacherId string) (*TeacherInfo, error) {
-	// 模拟API调用，实际应该调用课件平台API
-	logger.Warnf(ctx, "GetTeacherInfoFromAPI未实现实际API调用: teacherId=%s", teacherId)
+	// 使用课件平台API客户端获取老师信息
+	coursewareClient := client.GetCoursewareClient()
+	if coursewareClient == nil {
+		logger.Warnf(ctx, "课件平台API客户端未初始化: teacherId=%s", teacherId)
+		return nil, fmt.Errorf("课件平台API客户端未初始化")
+	}
 
-	// 返回nil表示未找到老师信息
-	return nil, nil
+	// 调用API获取老师信息
+	apiInfo, err := coursewareClient.GetTeacherInfo(ctx, teacherId)
+	if err != nil {
+		logger.Warnf(ctx, "从API获取老师信息失败: teacherId=%s, error=%v", teacherId, err)
+		return nil, err
+	}
+
+	// 如果API返回空，则返回nil
+	if apiInfo == nil {
+		return nil, nil
+	}
+
+	// 转换为内部TeacherInfo结构
+	teacherInfo := &TeacherInfo{
+		TeacherId:   apiInfo.TeacherId,
+		TeacherName: apiInfo.TeacherName,
+		SchoolId:    apiInfo.SchoolId,
+		SchoolName:  apiInfo.SchoolName,
+		SubjectId:   apiInfo.SubjectId,
+		SubjectName: apiInfo.SubjectName,
+		CreatedAt:   apiInfo.CreatedAt,
+		UpdatedAt:   apiInfo.UpdatedAt,
+	}
+
+	logger.Debugf(ctx, "从API获取老师信息成功: teacherId=%s, schoolId=%d, subjectId=%d",
+		teacherId, teacherInfo.SchoolId, teacherInfo.SubjectId)
+
+	return teacherInfo, nil
 }
 
 // InvalidateSubjectInfoCache 使指定学科组的信息缓存失效
