@@ -78,8 +78,11 @@ func TestSystem_GetModels(t *testing.T) {
 		assert.Equal(t, true, response["success"])
 
 		// 验证返回的模型列表
-		data := response["data"].([]interface{})
-		assert.NotEmpty(t, data)
+		if data, ok := response["data"].([]interface{}); ok {
+			assert.NotEmpty(t, data)
+		} else {
+			t.Errorf("Expected data to be []interface{}, got %T", response["data"])
+		}
 	})
 
 	t.Run("未登录用户无权访问", func(t *testing.T) {

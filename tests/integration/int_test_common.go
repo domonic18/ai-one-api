@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"embed"
 	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"os"
 	"time"
@@ -163,14 +164,21 @@ func createTestAdmin(db *gorm.DB) *model.User {
 
 // 创建测试普通用户
 func createTestNormalUser(db *gorm.DB) *model.User {
-	return createTestUser(db, "testuser", "password123", model.RoleCommonUser)
+	// 生成唯一的用户名，使用时间戳
+	timestamp := time.Now().UnixNano()
+	username := fmt.Sprintf("testuser_%d", timestamp)
+	return createTestUser(db, username, "password123", model.RoleCommonUser)
 }
 
 // 创建测试令牌
 func createTestToken(db *gorm.DB, userId int, name string) *model.Token {
+	// 生成不包含连字符的简单key，避免被TokenAuth中间件分割
+	timestamp := time.Now().UnixNano()
+	tokenKey := fmt.Sprintf("testkey%d", timestamp)
+
 	token := &model.Token{
 		UserId:         userId,
-		Key:            "test-token-" + name,
+		Key:            tokenKey,
 		Name:           name,
 		Status:         1,
 		RemainQuota:    1000,
