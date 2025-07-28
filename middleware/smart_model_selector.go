@@ -1,140 +1,69 @@
 package middleware
 
 import (
-	"encoding/json"
+	"context"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/common/ctxkey"
 	"github.com/songquanpeng/one-api/common/logger"
-	"github.com/songquanpeng/one-api/relay/constant"
-	"github.com/songquanpeng/one-api/relay/model_selection"
+	"github.com/songquanpeng/one-api/model"
 )
 
 // SmartModelSelection 智能模型选择中间件
-// 通过HTTP头 X-Smart-Model-Selection 控制是否启用智能选择
-// 如果启用且Redis中有用户配置，则使用配置的模型；否则使用请求中的原始模型作为兜底
-func SmartModelSelection() func(c *gin.Context) {
+// 根据请求头中的X-Smart-Model-Selection和X-User-ID字段，自动选择合适的模型
+func SmartModelSelection() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 检查是否启用了Redis
-		if !common.RedisEnabled {
+		// 1. 检查是否启用智能模型选择
+		smartModelSelection := c.GetHeader("X-Smart-Model-Selection")
+		if !isSmartModelSelectionEnabled(smartModelSelection) {
+			// 未启用智能模型选择，继续后续处理
 			c.Next()
 			return
 		}
 
-		// 检查是否启用智能模型选择
-		smartSelectionHeader := c.GetHeader(constant.SmartModelSelectionHeader)
-		if !isSmartSelectionEnabled(smartSelectionHeader) {
-			// 如果未启用智能选择，直接处理下一个中间件
+		// 2. 获取用户ID
+		userId := c.GetHeader("X-User-ID")
+		if userId == "" {
+			logger.Warnf(c, "启用智能模型选择但未提供用户ID")
 			c.Next()
 			return
 		}
 
-		// 获取请求体
-		var requestBody map[string]interface{}
-		bodyBytes, err := common.GetRequestBody(c)
-		if err != nil {
+		// 3. 获取原始请求模型
+		originalModel := c.GetString(ctxkey.RequestModel)
+		if originalModel == "" {
+			logger.Warnf(c, "未找到请求模型")
 			c.Next()
 			return
 		}
 
-		if err := json.Unmarshal(bodyBytes, &requestBody); err != nil {
-			c.Next()
-			return
+		// 4. 设置上下文信息
+		c.Set(ctxkey.TeacherId, userId)
+		c.Set(ctxkey.SmartModelSelection, true)
+		c.Set(ctxkey.OriginalModel, originalModel)
+
+		// 5. 创建智能模型选择器并选择模型
+		selector := model.NewSmartModelSelector(context.Background(), userId, originalModel)
+		selectedModel, changed := selector.SelectModel()
+
+		// 6. 如果选择了新模型，替换请求模型
+		if changed && selectedModel != "" {
+			logger.Infof(c, "智能模型选择: %s -> %s", originalModel, selectedModel)
+			c.Set(ctxkey.RequestModel, selectedModel)
+			c.Set(ctxkey.SelectedModel, selectedModel)
 		}
 
-		// 获取原始模型名称作为兜底
-		originalModel, ok := requestBody["model"].(string)
-		if !ok {
-			logger.Warnf(c.Request.Context(), "智能模型选择: 请求体中未找到model字段")
-			c.Request.Body = common.GetRequestBodyReader(bodyBytes)
-			c.Next()
-			return
-		}
-
-		ctx := c.Request.Context()
-		logger.Debugf(ctx, "检测到智能模型选择请求，原始模型: %s", originalModel)
-
-		// 从请求头获取用户ID
-		userID := c.GetHeader(constant.UserIdHeader)
-		if userID == "" {
-			logger.Warnf(ctx, "使用智能模型选择功能时未提供用户ID，使用原始模型: %s", originalModel)
-			c.Request.Body = common.GetRequestBodyReader(bodyBytes)
-			c.Next()
-			return
-		}
-
-		// 创建选择器
-		selector := model_selection.NewSmartModelSelector()
-
-		// 获取用户配置的模型信息
-		config, err := selector.GetUserModelConfig(userID)
-		if err != nil {
-			logger.Infof(ctx, "未找到用户模型配置或获取失败，使用原始模型 %s 作为兜底: %v", originalModel, err)
-			// 使用原始模型作为兜底，不需要修改请求体
-			c.Request.Body = common.GetRequestBodyReader(bodyBytes)
-			c.Next()
-			return
-		}
-
-		// 替换模型名称为配置的模型
-		requestBody["model"] = config.ModelName
-
-		// 合并模型参数
-		if len(config.Parameters) > 0 {
-			mergeModelParameters(requestBody, config.Parameters)
-		}
-
-		logger.Infof(ctx, "智能模型选择: 将模型 %s 替换为 %s", originalModel, config.ModelName)
-
-		// 更新请求体
-		newBodyBytes, err := json.Marshal(requestBody)
-		if err != nil {
-			logger.Errorf(ctx, "序列化更新后的请求体失败，使用原始模型: %v", err)
-			c.Request.Body = common.GetRequestBodyReader(bodyBytes)
-			c.Next()
-			return
-		}
-
-		// 更新上下文中的RequestModel值
-		c.Set(ctxkey.RequestModel, config.ModelName)
-
-		// 更新缓存的请求体内容
-		c.Set(ctxkey.KeyRequestBody, newBodyBytes)
-
-		c.Request.Body = common.GetRequestBodyReader(newBodyBytes)
 		c.Next()
 	}
 }
 
-// isSmartSelectionEnabled 检查是否启用智能模型选择
-// 支持多种格式: true, 1, on, enabled, yes (不区分大小写)
-func isSmartSelectionEnabled(headerValue string) bool {
-	if headerValue == "" {
+// isSmartModelSelectionEnabled 检查是否启用智能模型选择
+func isSmartModelSelectionEnabled(value string) bool {
+	if value == "" {
 		return false
 	}
 
-	value := strings.ToLower(strings.TrimSpace(headerValue))
-	return value == "true" || value == "1" || value == "on" || value == "enabled" || value == "yes"
-}
-
-// mergeModelParameters 合并模型参数
-func mergeModelParameters(requestBody map[string]interface{}, configParams map[string]interface{}) {
-	// 检查请求体中是否已有参数
-	if existingParams, exists := requestBody["parameters"]; exists {
-		if params, ok := existingParams.(map[string]interface{}); ok {
-			// 合并参数，配置的参数优先级更高
-			for k, v := range configParams {
-				params[k] = v
-			}
-			requestBody["parameters"] = params
-		} else {
-			// 如果现有参数格式不正确，直接使用配置参数
-			requestBody["parameters"] = configParams
-		}
-	} else {
-		// 如果请求中没有parameters字段，直接使用配置参数
-		requestBody["parameters"] = configParams
-	}
+	value = strings.ToLower(value)
+	return value == "true" || value == "1" || value == "yes" || value == "y"
 }

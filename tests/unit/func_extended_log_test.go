@@ -288,4 +288,59 @@ func TestExtendedLog(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, extendedLog)
 	})
+
+	// 添加按学校ID查询扩展日志的测试
+	t.Run("按学校ID查询扩展日志", func(t *testing.T) {
+		// 创建多个测试数据
+		schoolId := 6
+		for i := 1; i <= 2; i++ {
+			testLog := &model.Log{
+				UserId:            1,
+				CreatedAt:         helper.GetTimestamp(),
+				Type:              model.LogTypeConsume,
+				Content:           "测试日志",
+				Username:          "test_user",
+				TokenName:         "test_token",
+				ModelName:         "gpt-3.5-turbo",
+				Quota:             100,
+				PromptTokens:      50,
+				CompletionTokens:  50,
+				ChannelId:         1,
+				RequestId:         "test_request_006_" + string(rune(i)),
+				ElapsedTime:       1000,
+				IsStream:          false,
+				SystemPromptReset: false,
+			}
+
+			err := model.DB.Create(testLog).Error
+			require.NoError(t, err)
+
+			testInfo := &model.ExtendedLogInfo{
+				SchoolId:    schoolId,
+				SchoolName:  "测试学校6",
+				SubjectId:   106,
+				SubjectName: "物理组",
+				TeacherId:   "teacher_006_" + string(rune(i)),
+				TeacherName: "赵老师",
+				GroupName:   "物理组",
+			}
+
+			err = model.CreateExtendedLog(ctx, testLog.Id, testInfo)
+			require.NoError(t, err)
+		}
+
+		// 按学校ID查询
+		logs, err := model.GetExtendedLogsBySchoolId(ctx, schoolId, 0, 10)
+		require.NoError(t, err)
+		assert.Len(t, logs, 2)
+
+		// 验证所有记录都属于同一个学校
+		for _, log := range logs {
+			assert.Equal(t, schoolId, log.SchoolId)
+		}
+
+		// 清理测试数据
+		model.DB.Exec("DELETE FROM extended_logs WHERE school_id = ?", schoolId)
+		model.DB.Exec("DELETE FROM logs WHERE request_id LIKE 'test_request_006_%'")
+	})
 }
