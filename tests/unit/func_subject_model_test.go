@@ -208,9 +208,9 @@ func TestGetModelByTeacherId(t *testing.T) {
 		teacherId := ""
 		modelName, err := model.GetModelByTeacherId(ctx, teacherId)
 
-		// 空用户ID仍然会调用Redis相关函数，所以会返回Redis未启用的错误
+		// 空用户ID会直接返回参数错误，而不是Redis错误
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "Redis未启用")
+		assert.Contains(t, err.Error(), "teacherId不能为空")
 		assert.Equal(t, "", modelName)
 	})
 
