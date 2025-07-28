@@ -13,10 +13,13 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common"
+	"github.com/songquanpeng/one-api/common/client"
 	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/relay/adaptor/openai"
 	"github.com/songquanpeng/one-api/router"
 	"github.com/songquanpeng/one-api/tests/fixtures"
+
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -30,6 +33,12 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 	config.DebugEnabled = true
 	config.GlobalWebRateLimitNum = 0
 	config.GlobalApiRateLimitNum = 0
+
+	// 初始化tiktoken编码器
+	openai.InitTokenEncoders()
+
+	// 初始化HTTP客户端
+	client.Init()
 
 	// 初始化Redis客户端
 	err := common.InitRedisClient()
