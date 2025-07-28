@@ -12,6 +12,13 @@ import (
 )
 
 // TestLog_GetAllLogs 测试获取所有日志功能
+// 测试目的：验证管理员获取所有系统日志的接口正确性和权限控制
+// 测试内容：
+// 1. 验证管理员用户能够成功获取所有用户的日志数据
+// 2. 验证日志列表的完整性和数据格式正确性
+// 3. 验证不同类型日志（消费、充值等）的正确展示
+// 4. 验证日志数据与用户关联的正确性
+// 5. 验证管理员权限的访问控制机制
 func TestLog_GetAllLogs(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -62,6 +69,13 @@ func TestLog_GetAllLogs(t *testing.T) {
 }
 
 // TestLog_GetUserLogs 测试获取用户日志功能
+// 测试目的：验证用户获取自身日志的接口正确性和数据隔离性
+// 测试内容：
+// 1. 验证已登录用户能够成功获取自己的日志数据
+// 2. 验证用户只能访问自己的日志，不能访问他人日志
+// 3. 验证用户日志的完整性和隐私保护
+// 4. 验证未登录用户的访问被拒绝
+// 5. 验证不同日志类型（消费、充值）的正确分类展示
 func TestLog_GetUserLogs(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -103,6 +117,13 @@ func TestLog_GetUserLogs(t *testing.T) {
 }
 
 // TestLog_SearchAllLogs 测试搜索所有日志功能
+// 测试目的：验证管理员搜索所有系统日志的接口正确性和搜索功能
+// 测试内容：
+// 1. 验证管理员能够根据关键词搜索所有用户的日志
+// 2. 验证搜索功能的模糊匹配能力
+// 3. 验证搜索结果的准确性和完整性
+// 4. 验证搜索接口的响应格式正确性
+// 5. 验证管理员权限下的全局搜索能力
 func TestLog_SearchAllLogs(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -141,6 +162,13 @@ func TestLog_SearchAllLogs(t *testing.T) {
 }
 
 // TestLog_SearchUserLogs 测试搜索用户日志功能
+// 测试目的：验证用户搜索自身日志的接口正确性和数据隐私保护
+// 测试内容：
+// 1. 验证用户能够根据关键词搜索自己的日志数据
+// 2. 验证用户只能搜索自己的日志，不能搜索他人日志
+// 3. 验证搜索关键词的匹配准确性和模糊查询能力
+// 4. 验证搜索结果的隐私性和完整性
+// 5. 验证搜索接口的响应格式和性能
 func TestLog_SearchUserLogs(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -177,6 +205,13 @@ func TestLog_SearchUserLogs(t *testing.T) {
 }
 
 // TestLog_GetLogsStat 测试获取日志统计功能
+// 测试目的：验证管理员获取系统日志统计信息的接口正确性和数据分析能力
+// 测试内容：
+// 1. 验证管理员能够获取全局日志统计数据
+// 2. 验证统计数据的准确性和完整性（总消耗、充值、调用次数等）
+// 3. 验证不同时间维度的统计功能
+// 4. 验证统计接口的响应格式和数据结构
+// 5. 验证管理员权限下的全局统计能力
 func TestLog_GetLogsStat(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -216,6 +251,13 @@ func TestLog_GetLogsStat(t *testing.T) {
 }
 
 // TestLog_GetLogsSelfStat 测试获取用户日志统计功能
+// 测试目的：验证用户获取自身日志统计信息的接口正确性和数据隐私保护
+// 测试内容：
+// 1. 验证用户能够获取自己的日志统计数据
+// 2. 验证用户只能查看自己的统计信息，不能查看他人数据
+// 3. 验证统计数据的准确性和隐私保护
+// 4. 验证统计维度包括消费、充值、调用次数等
+// 5. 验证统计接口的响应格式和数据结构
 func TestLog_GetLogsSelfStat(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -253,6 +295,13 @@ func TestLog_GetLogsSelfStat(t *testing.T) {
 }
 
 // TestLog_DeleteHistoryLogs 测试删除历史日志功能
+// 测试目的：验证管理员删除历史日志的接口正确性和数据清理机制
+// 测试内容：
+// 1. 验证管理员能够根据时间戳删除历史日志
+// 2. 验证删除操作的数据安全性和不可逆性
+// 3. 验证删除后日志数据的清理完整性
+// 4. 验证删除操作的权限控制（仅管理员可操作）
+// 5. 验证删除操作的幂等性和错误处理
 func TestLog_DeleteHistoryLogs(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -286,6 +335,13 @@ func TestLog_DeleteHistoryLogs(t *testing.T) {
 }
 
 // TestLog_LogPagination 测试日志分页功能
+// 测试目的：验证日志分页查询的接口正确性和性能优化
+// 测试内容：
+// 1. 验证分页参数的正确解析和处理
+// 2. 验证分页数据的准确性和完整性
+// 3. 验证每页数据量的正确性
+// 4. 验证分页查询的性能和响应速度
+// 5. 验证空页和边界页的处理逻辑
 func TestLog_LogPagination(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -325,6 +381,13 @@ func TestLog_LogPagination(t *testing.T) {
 }
 
 // TestLog_LogFiltering 测试日志过滤功能
+// 测试目的：验证日志过滤查询的接口正确性和多维度筛选能力
+// 测试内容：
+// 1. 验证根据关键词过滤日志的准确性
+// 2. 验证多条件组合过滤的正确性
+// 3. 验证过滤结果的数据完整性和格式正确性
+// 4. 验证空结果集的处理逻辑
+// 5. 验证过滤查询的性能优化
 func TestLog_LogFiltering(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)

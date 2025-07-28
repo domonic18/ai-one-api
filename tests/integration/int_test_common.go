@@ -13,9 +13,11 @@ import (
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common"
+	"github.com/songquanpeng/one-api/common/cache"
 	"github.com/songquanpeng/one-api/common/client"
 	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/model/smart"
 	"github.com/songquanpeng/one-api/relay/adaptor/openai"
 	"github.com/songquanpeng/one-api/router"
 	"github.com/songquanpeng/one-api/tests/fixtures"
@@ -46,6 +48,9 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 		panic("failed to initialize Redis client: " + err.Error())
 	}
 
+	// 初始化缓存系统
+	cache.Init()
+
 	// 连接MySQL数据库
 	db, err := connectTestMySQL()
 	if err != nil {
@@ -56,9 +61,19 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 	common.UsingMySQL = true
 	common.UsingSQLite = false
 
-	// 迁移所有表
+	// 设置数据库连接
 	model.DB = db
 	model.LOG_DB = db
+
+	// 清理现有数据和表结构，避免迁移冲突
+	cleanupTestData(db)
+
+	// 删除可能存在的扩展日志表以避免外键约束问题
+	db.Exec("DROP TABLE IF EXISTS extended_logs")
+
+	// 初始化智能模型系统（需要在设置DB之后）
+	smart.Init()
+
 	err = db.AutoMigrate(
 		&model.User{},
 		&model.Token{},
@@ -67,13 +82,13 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 		&model.Ability{},
 		&model.Option{},
 		&model.Redemption{},
-		&model.ExtendedLog{},
+		&smart.ExtendedLog{},
 	)
 	if err != nil {
 		panic("failed to migrate database: " + err.Error())
 	}
 
-	// 清理现有数据
+	// 再次清理数据
 	cleanupTestData(db)
 
 	// 设置Gin为测试模式

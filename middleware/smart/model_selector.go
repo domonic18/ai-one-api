@@ -40,6 +40,12 @@ func ModelSelection() gin.HandlerFunc {
 
 		// 进行智能模型选择
 		ctx := c.Request.Context()
+
+		// 确保DefaultSelector已初始化
+		if smartModel.DefaultSelector == nil {
+			smartModel.DefaultSelector = smartModel.NewModelSelector()
+		}
+
 		selectedModel, replaced := smartModel.DefaultSelector.SelectModel(ctx, teacherId, originalModel)
 		if replaced {
 			// 设置选择的模型到上下文

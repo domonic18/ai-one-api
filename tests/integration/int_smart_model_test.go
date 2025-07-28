@@ -10,6 +10,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestSmartModelSelectionAPI 测试智能模型选择API集成功能
+// 测试目的：验证智能模型选择系统在完整API调用链路中的正确集成和行为表现
+// 测试内容：
+// 1. 验证智能模型选择中间件在真实API调用中的启用和禁用机制
+// 2. 验证用户身份识别与模型选择的关联性
+// 3. 验证扩展日志记录与API调用的集成效果
+// 4. 验证渠道可用性和模型支持的完整性
+// 5. 验证响应格式的正确性和API兼容性
 func TestSmartModelSelectionAPI(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)

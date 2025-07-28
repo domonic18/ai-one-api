@@ -5,6 +5,7 @@ import (
 
 	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/model/smart"
 	"gorm.io/gorm"
 )
 
@@ -292,7 +293,7 @@ func InsertTestData(db *gorm.DB) error {
 func ClearTestData(db *gorm.DB) error {
 	// 按照外键依赖关系的逆序删除数据
 	tables := []interface{}{
-		&model.ExtendedLog{}, // 扩展日志表
+		&smart.ExtendedLog{}, // 扩展日志表
 		&model.Log{},         // 日志表
 		&model.Redemption{},  // 兑换码表
 		&model.Ability{},     // 能力表

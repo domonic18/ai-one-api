@@ -11,7 +11,12 @@ import (
 )
 
 // TestChannel_GetAllChannels 测试获取所有渠道功能
-// 目的：验证管理员获取所有渠道的接口正确性
+// 测试目的：验证管理员获取所有渠道的接口正确性和权限控制
+// 测试内容：
+// 1. 验证管理员用户能够成功获取所有渠道列表
+// 2. 验证普通用户无法访问此接口
+// 3. 验证返回数据格式的正确性
+// 4. 验证session认证机制的有效性
 func TestChannel_GetAllChannels(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -92,7 +97,11 @@ func TestChannel_GetAllChannels(t *testing.T) {
 }
 
 // TestChannel_SearchChannels 测试搜索渠道功能
-// 目的：验证管理员搜索渠道的接口正确性
+// 测试目的：验证管理员搜索渠道的接口正确性和搜索功能
+// 测试内容：
+// 1. 验证管理员能够根据关键词搜索渠道
+// 2. 验证搜索功能的响应格式正确性
+// 3. 验证搜索结果的完整性
 func TestChannel_SearchChannels(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -140,7 +149,12 @@ func TestChannel_SearchChannels(t *testing.T) {
 }
 
 // TestChannel_GetChannel 测试获取单个渠道功能
-// 目的：验证管理员获取单个渠道详情的接口正确性
+// 测试目的：验证管理员获取单个渠道详情的接口正确性和数据完整性
+// 测试内容：
+// 1. 验证管理员能够获取指定渠道的详细信息
+// 2. 验证返回的渠道信息格式正确性
+// 3. 验证渠道ID与返回数据的一致性
+// 4. 验证敏感信息（如密钥）的处理逻辑
 func TestChannel_GetChannel(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -193,7 +207,13 @@ func TestChannel_GetChannel(t *testing.T) {
 }
 
 // TestChannel_AddChannel 测试添加渠道功能
-// 目的：验证管理员创建新渠道的接口正确性
+// 测试目的：验证管理员创建新渠道的接口正确性和数据验证逻辑
+// 测试内容：
+// 1. 验证管理员能够成功创建有效渠道
+// 2. 验证渠道必填字段的验证逻辑
+// 3. 验证空密钥渠道的创建失败处理
+// 4. 验证带配置渠道的创建成功
+// 5. 验证创建后的渠道信息完整性
 func TestChannel_AddChannel(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -294,7 +314,12 @@ func TestChannel_AddChannel(t *testing.T) {
 }
 
 // TestChannel_UpdateChannel 测试更新渠道功能
-// 目的：验证管理员更新渠道信息的接口正确性
+// 测试目的：验证管理员更新渠道信息的接口正确性和数据一致性
+// 测试内容：
+// 1. 验证管理员能够成功更新渠道基本信息
+// 2. 验证更新后数据的一致性
+// 3. 验证更新操作的幂等性
+// 4. 验证渠道状态变更的正确性
 func TestChannel_UpdateChannel(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -347,7 +372,12 @@ func TestChannel_UpdateChannel(t *testing.T) {
 }
 
 // TestChannel_DeleteChannel 测试删除渠道功能
-// 目的：验证管理员删除渠道的接口正确性
+// 测试目的：验证管理员删除渠道的接口正确性和数据清理逻辑
+// 测试内容：
+// 1. 验证管理员能够成功删除指定渠道
+// 2. 验证删除操作的数据一致性
+// 3. 验证删除后渠道信息的不可访问性
+// 4. 验证删除操作的幂等性
 func TestChannel_DeleteChannel(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)

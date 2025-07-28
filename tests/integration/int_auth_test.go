@@ -11,7 +11,15 @@ import (
 )
 
 // TestAuth_UserLogin 测试用户登录功能
-// 目的：验证用户登录接口的正确性，包括成功登录、失败登录、参数验证等场景
+// 测试目的：验证用户登录接口的正确性、安全性和参数验证逻辑
+// 测试内容：
+// 1. 验证正确凭据的成功登录场景
+// 2. 验证错误密码的登录失败处理
+// 3. 验证不存在的用户登录处理
+// 4. 验证空用户名的边界条件处理
+// 5. 验证空密码的边界条件处理
+// 6. 验证返回数据格式的正确性
+// 7. 验证错误消息的准确性和安全性
 func TestAuth_UserLogin(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -85,7 +93,14 @@ func TestAuth_UserLogin(t *testing.T) {
 }
 
 // TestAuth_UserRegister 测试用户注册功能
-// 目的：验证用户注册接口的正确性，包括成功注册、参数验证等场景
+// 测试目的：验证用户注册接口的正确性、数据验证和冲突处理逻辑
+// 测试内容：
+// 1. 验证新用户的成功注册场景
+// 2. 验证重复用户名的冲突处理
+// 3. 验证空用户名的边界条件处理
+// 4. 验证注册数据的完整性验证
+// 5. 验证数据库约束的正确性
+// 6. 验证注册后的用户状态初始化
 func TestAuth_UserRegister(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -155,7 +170,13 @@ func TestAuth_UserRegister(t *testing.T) {
 }
 
 // TestAuth_GetSelf 测试获取当前用户信息功能
-// 目的：验证获取当前登录用户信息的接口正确性
+// 测试目的：验证获取当前登录用户信息的接口正确性和权限控制
+// 测试内容：
+// 1. 验证已登录用户能够成功获取自身信息
+// 2. 验证未登录用户的访问被拒绝
+// 3. 验证返回用户信息的完整性
+// 4. 验证用户隐私数据的安全性
+// 5. 验证session认证机制的有效性
 func TestAuth_GetSelf(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
@@ -214,7 +235,13 @@ func TestAuth_GetSelf(t *testing.T) {
 }
 
 // TestAuth_GenerateAccessToken 测试生成访问令牌功能
-// 目的：验证管理员生成访问令牌的接口正确性
+// 测试目的：验证管理员和普通用户生成访问令牌的接口正确性和权限控制
+// 测试内容：
+// 1. 验证管理员能够成功生成访问令牌
+// 2. 验证普通用户生成访问令牌的权限
+// 3. 验证令牌参数的正确性验证
+// 4. 验证生成令牌的完整性和有效性
+// 5. 验证令牌权限与用户权限的关联性
 func TestAuth_GenerateAccessToken(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
