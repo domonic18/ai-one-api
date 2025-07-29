@@ -121,7 +121,7 @@ func GetSubjectInfoFromAPI(ctx context.Context, subjectId int) (*SubjectInfo, er
 	return subjectInfo, nil
 }
 
-// GetTeacherInfoWithCache 获取老师信息（带缓存）
+// GetTeacherInfoWithCache 获取老师信息（使用简化的缓存接口）
 func GetTeacherInfoWithCache(ctx context.Context, teacherId string) (*TeacherInfo, error) {
 	if !common.RedisEnabled {
 		return nil, fmt.Errorf("Redis未启用")
@@ -131,30 +131,18 @@ func GetTeacherInfoWithCache(ctx context.Context, teacherId string) (*TeacherInf
 	cacheKey := fmt.Sprintf("%s%s", TeacherInfoCachePrefix, teacherId)
 	var info TeacherInfo
 
-	err := cache.Mgr.Get(ctx, cacheKey, &info)
-	if err == nil {
-		logger.Debugf(ctx, "老师信息缓存命中: teacherId=%s", teacherId)
-		return &info, nil
-	}
+	// 使用简化的GetWithFallback方法
+	err := cache.Mgr.GetWithFallback(ctx, cacheKey, func() (interface{}, error) {
+		return GetTeacherInfoFromAPI(ctx, teacherId)
+	}, DefaultCacheTTL, &info)
 
-	// 2. 缓存未命中，从API获取
-	apiInfo, err := GetTeacherInfoFromAPI(ctx, teacherId)
 	if err != nil {
-		logger.Warnf(ctx, "从API获取老师信息失败: teacherId=%s, error=%v", teacherId, err)
+		logger.Warnf(ctx, "获取老师信息失败: teacherId=%s, error=%v", teacherId, err)
 		return nil, err
 	}
 
-	// 3. 使用缓存管理器更新缓存
-	if apiInfo != nil {
-		err = cache.Mgr.Set(ctx, cacheKey, apiInfo, DefaultCacheTTL)
-		if err != nil {
-			logger.Warnf(ctx, "设置老师信息缓存失败: teacherId=%s, error=%v", teacherId, err)
-		} else {
-			logger.Debugf(ctx, "老师信息已缓存: teacherId=%s, subjectId=%d", teacherId, apiInfo.SubjectId)
-		}
-	}
-
-	return apiInfo, nil
+	logger.Debugf(ctx, "老师信息获取成功: teacherId=%s, subjectId=%d", teacherId, info.SubjectId)
+	return &info, nil
 }
 
 // GetTeacherInfoFromAPI 从课件平台API获取老师信息
@@ -213,21 +201,14 @@ func InvalidateSubjectInfoCache(ctx context.Context, subjectId int) error {
 	return nil
 }
 
-// InvalidateTeacherInfoCache 使指定老师的信息缓存失效
+// InvalidateTeacherInfoCache 失效老师信息缓存
 func InvalidateTeacherInfoCache(ctx context.Context, teacherId string) error {
 	if !common.RedisEnabled {
 		return fmt.Errorf("Redis未启用")
 	}
 
-	cacheKey := fmt.Sprintf("%s%s", TeacherInfoCachePrefix, teacherId)
-	err := cache.Mgr.Delete(ctx, cacheKey)
-	if err != nil {
-		logger.Warnf(ctx, "删除老师信息缓存失败: teacherId=%s, error=%v", teacherId, err)
-		return err
-	}
-
-	logger.Debugf(ctx, "老师信息缓存已删除: teacherId=%s", teacherId)
-	return nil
+	// 使用简化的失效管理器
+	return cache.Invalidator.InvalidateUserCache(ctx, teacherId)
 }
 
 // GetModelByTeacherId 根据老师ID获取推荐模型
@@ -272,7 +253,7 @@ func GetModelByTeacherId(ctx context.Context, teacherId string) (string, error) 
 	return defaultModel, nil
 }
 
-// BatchInvalidateTeacherInfoCache 批量使老师信息缓存失效
+// BatchInvalidateTeacherInfoCache 批量失效老师信息缓存
 func BatchInvalidateTeacherInfoCache(ctx context.Context, teacherIds []string) error {
 	if len(teacherIds) == 0 {
 		return nil
@@ -288,18 +269,7 @@ func BatchInvalidateTeacherInfoCache(ctx context.Context, teacherIds []string) e
 		cacheKeys[i] = fmt.Sprintf("%s%s", TeacherInfoCachePrefix, teacherId)
 	}
 
-	// 使用缓存管理器批量删除
-	result := cache.Mgr.BatchDelete(ctx, cacheKeys)
-
-	if result.FailedCount > 0 {
-		logger.Warnf(ctx, "批量删除老师信息缓存部分失败: 成功=%d, 失败=%d",
-			result.SuccessCount, result.FailedCount)
-	}
-
-	logger.Debugf(ctx, "批量删除老师信息缓存完成: 成功=%d, 失败=%d",
-		result.SuccessCount, result.FailedCount)
-
-	return nil
+	return cache.Invalidator.InvalidateByKeys(ctx, cacheKeys)
 }
 
 // PreloadTeacherInfos 预加载老师信息到缓存
@@ -312,44 +282,24 @@ func PreloadTeacherInfos(ctx context.Context, teacherIds []string) error {
 		return fmt.Errorf("Redis未启用")
 	}
 
-	// 构建缓存项列表
-	cacheItems := make([]cache.Item, 0)
-
+	successCount := 0
 	for _, teacherId := range teacherIds {
-		// 从API获取老师信息
-		info, err := GetTeacherInfoFromAPI(ctx, teacherId)
+		_, err := GetTeacherInfoWithCache(ctx, teacherId)
 		if err != nil {
 			logger.Warnf(ctx, "预加载老师信息失败: teacherId=%s, error=%v", teacherId, err)
-			continue
-		}
-
-		if info != nil {
-			cacheItem := cache.Item{
-				Key:        fmt.Sprintf("%s%s", TeacherInfoCachePrefix, teacherId),
-				Value:      info,
-				Expiration: DefaultCacheTTL,
-				CreatedAt:  time.Now(),
-			}
-			cacheItems = append(cacheItems, cacheItem)
+		} else {
+			successCount++
 		}
 	}
 
-	if len(cacheItems) > 0 {
-		// 批量设置缓存
-		result := cache.Mgr.BatchSet(ctx, cacheItems)
-
-		logger.Debugf(ctx, "预加载老师信息完成: 请求=%d, 成功=%d, 失败=%d",
-			len(teacherIds), result.SuccessCount, result.FailedCount)
-	}
-
+	logger.Debugf(ctx, "预加载老师信息完成: 请求=%d, 成功=%d", len(teacherIds), successCount)
 	return nil
 }
 
 // GetSubjectInfoCacheStats 获取学科组信息缓存统计
-func GetSubjectInfoCacheStats() *cache.Stats {
+func GetSubjectInfoCacheStats() *cache.SimpleStats {
 	if cache.Mgr == nil {
-		return &cache.Stats{}
+		return &cache.SimpleStats{}
 	}
-
 	return cache.Mgr.GetStats()
 }
