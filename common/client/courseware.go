@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/songquanpeng/one-api/common/config"
@@ -21,14 +22,16 @@ type CoursewareClient struct {
 
 // 课件平台API响应结构
 type TeacherInfo struct {
-	TeacherId   string `json:"teacher_id"`
-	TeacherName string `json:"teacher_name"`
-	SchoolId    int    `json:"school_id"`
-	SchoolName  string `json:"school_name"`
-	SubjectId   int    `json:"subject_id"`
-	SubjectName string `json:"subject_name"`
-	CreatedAt   int64  `json:"created_at"`
-	UpdatedAt   int64  `json:"updated_at"`
+	TeacherId      string `json:"teacher_id"`
+	TeacherName    string `json:"teacher_name"`
+	SchoolId       int    `json:"school_id"`
+	SchoolName     string `json:"school_name"`
+	SubjectId      int    `json:"subject_id"`
+	SubjectName    string `json:"subject_name"`
+	GroupName      string `json:"group_name"`      // OneAPI用户组
+	PreferredModel string `json:"preferred_model"` // 用户偏好模型
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
 }
 
 type SubjectInfo struct {
@@ -279,4 +282,126 @@ func (c *CoursewareClient) PreloadUserConfigs(ctx context.Context, userIds []str
 	}
 
 	return results, nil
+}
+
+// GetAllTeacherIds 获取所有老师ID列表（预加载用）
+func (c *CoursewareClient) GetAllTeacherIds(ctx context.Context) ([]string, error) {
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("课件平台API基础URL未配置")
+	}
+
+	// 构建请求URL
+	url := fmt.Sprintf("%s/teachers/ids", c.baseURL)
+
+	// 创建请求
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	// 设置请求头
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	req.Header.Set("Content-Type", "application/json")
+
+	// 发送请求
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("发送请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态码
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API请求失败: 状态码=%d, 响应=%s", resp.StatusCode, string(body))
+	}
+
+	// 解析响应
+	var response struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			TeacherIds []string `json:"teacher_ids"`
+			Total      int      `json:"total"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	if response.Code != 200 {
+		return nil, fmt.Errorf("API返回错误: %s", response.Message)
+	}
+
+	return response.Data.TeacherIds, nil
+}
+
+// BatchGetUserInfo 批量获取用户信息（预加载用）
+func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []string) ([]*TeacherInfo, error) {
+	if len(teacherIds) == 0 {
+		return []*TeacherInfo{}, nil
+	}
+
+	if c.baseURL == "" {
+		return nil, fmt.Errorf("课件平台API基础URL未配置")
+	}
+
+	// 构建请求URL
+	url := fmt.Sprintf("%s/teachers/batch", c.baseURL)
+
+	// 构建请求体
+	requestBody := map[string]interface{}{
+		"teacher_ids": teacherIds,
+	}
+
+	// 序列化请求体
+	jsonData, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("序列化请求体失败: %w", err)
+	}
+
+	// 创建请求
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonData)))
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	// 设置请求头
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	req.Header.Set("Content-Type", "application/json")
+
+	// 发送请求
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("发送请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态码
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API请求失败: 状态码=%d, 响应=%s", resp.StatusCode, string(body))
+	}
+
+	// 解析响应
+	var response struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			Users        []*TeacherInfo `json:"users"`
+			SuccessCount int            `json:"success_count"`
+			ErrorCount   int            `json:"error_count"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	if response.Code != 200 {
+		return nil, fmt.Errorf("API返回错误: %s", response.Message)
+	}
+
+	return response.Data.Users, nil
 }
