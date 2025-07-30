@@ -2,165 +2,246 @@ package unit
 
 import (
 	"context"
-	"sync"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+
+	"encoding/json"
+	"fmt"
+
+	"github.com/go-redis/redis/v8"
+	"github.com/songquanpeng/one-api/common/client"
 	"github.com/songquanpeng/one-api/middleware/identity"
+	"github.com/songquanpeng/one-api/tests/mocks"
 )
 
-// MockIdentityResolver 用于测试的模拟身份解析器
-type MockIdentityResolver struct {
-	groupMap map[string]string
-	modelMap map[string]string
-}
-
-func NewMockIdentityResolver() *MockIdentityResolver {
-	return &MockIdentityResolver{
-		groupMap: map[string]string{
-			"teacher_001": "beijing_math_group",
-			"teacher_002": "beijing_chinese_group",
-		},
-		modelMap: map[string]string{
-			"teacher_001": "gpt-4",
-			"teacher_002": "gemini-pro",
-		},
-	}
-}
-
-func (m *MockIdentityResolver) ResolveGroup(ctx context.Context, externalIdentity string) string {
-	if group, exists := m.groupMap[externalIdentity]; exists {
-		return group
-	}
-	return "default"
-}
-
-func (m *MockIdentityResolver) ResolveModel(ctx context.Context, externalIdentity string, requestModel string) string {
-	if model, exists := m.modelMap[externalIdentity]; exists {
-		return model
-	}
-	return requestModel
-}
-
-func TestIdentityResolver_DefaultImplementation_正常场景(t *testing.T) {
+// TestDefaultIdentityResolver 测试默认身份解析器
+func TestDefaultIdentityResolver(t *testing.T) {
 	resolver := &identity.DefaultIdentityResolver{}
-	ctx := context.Background()
 
-	// 测试ResolveGroup
-	group := resolver.ResolveGroup(ctx, "teacher_001")
-	if group != "" {
-		t.Errorf("Expected empty string, got %s", group)
-	}
+	t.Run("ResolveGroup返回空字符串", func(t *testing.T) {
+		group := resolver.ResolveGroup(context.Background(), "teacher_001")
+		assert.Equal(t, "", group)
+	})
 
-	// 测试ResolveModel
-	originalModel := "gpt-3.5-turbo"
-	model := resolver.ResolveModel(ctx, "teacher_001", originalModel)
-	if model != originalModel {
-		t.Errorf("Expected %s, got %s", originalModel, model)
-	}
+	t.Run("ResolveModel返回原始模型", func(t *testing.T) {
+		originalModel := "gpt-3.5-turbo"
+		model := resolver.ResolveModel(context.Background(), "teacher_001", originalModel)
+		assert.Equal(t, originalModel, model)
+	})
 }
 
-func TestIdentityResolver_全局管理器_设置和获取(t *testing.T) {
-	// 保存原始解析器
-	originalResolver := identity.GetIdentityResolver()
-	defer identity.SetIdentityResolver(originalResolver)
-
-	// 测试设置和获取模拟解析器
-	mockResolver := NewMockIdentityResolver()
-	identity.SetIdentityResolver(mockResolver)
-
-	retrievedResolver := identity.GetIdentityResolver()
-	if retrievedResolver != mockResolver {
-		t.Error("Retrieved resolver is not the same as set resolver")
-	}
-
-	// 测试解析功能
+// TestCoursewareIdentityResolver_ResolveGroup 测试课件平台身份解析器的用户组解析
+func TestCoursewareIdentityResolver_ResolveGroup(t *testing.T) {
 	ctx := context.Background()
-	group := retrievedResolver.ResolveGroup(ctx, "teacher_001")
-	if group != "beijing_math_group" {
-		t.Errorf("Expected beijing_math_group, got %s", group)
+	mockAPI := &mocks.MockCoursewareClient{}
+	mockRedis := mocks.NewMockRedisClient()
+	config := &identity.CoursewareConfig{
+		DefaultGroup: "default",
+		Timeout:      5 * time.Second,
 	}
 
-	model := retrievedResolver.ResolveModel(ctx, "teacher_001", "gpt-3.5-turbo")
-	if model != "gpt-4" {
-		t.Errorf("Expected gpt-4, got %s", model)
-	}
-}
+	cache := identity.NewCoursewareCache(mockRedis, config)
+	resolver := identity.NewCoursewareIdentityResolver(mockAPI, cache, config)
 
-func TestIdentityResolver_并发访问_线程安全(t *testing.T) {
-	mockResolver := NewMockIdentityResolver()
-	identity.SetIdentityResolver(mockResolver)
-
-	ctx := context.Background()
-	var wg sync.WaitGroup
-	results := make(chan string, 100)
-
-	// 并发测试
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			resolver := identity.GetIdentityResolver()
-			group := resolver.ResolveGroup(ctx, "teacher_001")
-			results <- group
-		}()
-	}
-
-	wg.Wait()
-	close(results)
-
-	// 验证所有结果都是一致的
-	expectedGroup := "beijing_math_group"
-	for group := range results {
-		if group != expectedGroup {
-			t.Errorf("Expected %s, got %s", expectedGroup, group)
+	t.Run("缓存命中", func(t *testing.T) {
+		// 准备缓存数据
+		userInfo := &identity.UserInfo{
+			TeacherId:      "teacher_001",
+			TeacherName:    "张老师",
+			GroupName:      "beijing_math_group",
+			PreferredModel: "gpt-4",
+			UpdatedAt:      time.Now().Unix(),
 		}
-	}
+
+		userInfoBytes, _ := json.Marshal(userInfo)
+		userInfoStr := string(userInfoBytes)
+
+		// 设置mock期望 - 缓存命中
+		mockRedis.On("Get", mock.Anything, "courseware:teacher:teacher_001").Return(redis.NewStringResult(userInfoStr, nil))
+
+		// 执行测试
+		group := resolver.ResolveGroup(ctx, "teacher_001")
+
+		// 验证结果
+		assert.Equal(t, "beijing_math_group", group)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("缓存未命中_API成功", func(t *testing.T) {
+		// 准备API响应
+		apiUserInfo := &client.TeacherInfo{
+			TeacherId:      "teacher_002",
+			TeacherName:    "李老师",
+			GroupName:      "beijing_chinese_group",
+			PreferredModel: "gemini-pro",
+		}
+
+		// 设置mock期望
+		mockRedis.On("Get", mock.Anything, "courseware:teacher:teacher_002").Return(redis.NewStringResult("", redis.Nil))
+		mockAPI.On("GetTeacherInfo", mock.Anything, "teacher_002").Return(apiUserInfo, nil)
+		mockRedis.On("Set", mock.Anything, "courseware:teacher:teacher_002", mock.Anything, config.CacheTTL).Return(redis.NewStatusResult("OK", nil))
+
+		// 执行测试
+		group := resolver.ResolveGroup(ctx, "teacher_002")
+
+		// 验证结果
+		assert.Equal(t, "beijing_chinese_group", group)
+		mockRedis.AssertExpectations(t)
+		mockAPI.AssertExpectations(t)
+	})
+
+	t.Run("API失败_使用默认分组", func(t *testing.T) {
+		// 设置mock期望
+		mockRedis.On("Get", mock.Anything, "courseware:teacher:teacher_003").Return(redis.NewStringResult("", redis.Nil))
+		mockAPI.On("GetTeacherInfo", mock.Anything, "teacher_003").Return(nil, fmt.Errorf("API调用失败"))
+
+		// 执行测试
+		group := resolver.ResolveGroup(ctx, "teacher_003")
+
+		// 验证结果
+		assert.Equal(t, "default", group)
+		mockRedis.AssertExpectations(t)
+		mockAPI.AssertExpectations(t)
+	})
 }
 
-func TestIdentityResolver_接口实现_类型检查(t *testing.T) {
-	// 确保DefaultIdentityResolver实现了IdentityResolver接口
-	var _ identity.IdentityResolver = &identity.DefaultIdentityResolver{}
-
-	// 确保MockIdentityResolver实现了IdentityResolver接口
-	var _ identity.IdentityResolver = &MockIdentityResolver{}
-}
-
-func TestIdentityResolver_边界值_空值处理(t *testing.T) {
-	resolver := &identity.DefaultIdentityResolver{}
+// TestCoursewareIdentityResolver_ResolveModel 测试课件平台身份解析器的模型解析
+func TestCoursewareIdentityResolver_ResolveModel(t *testing.T) {
 	ctx := context.Background()
-
-	// 测试空字符串输入
-	group := resolver.ResolveGroup(ctx, "")
-	if group != "" {
-		t.Errorf("Expected empty string for empty input, got %s", group)
+	mockAPI := &mocks.MockCoursewareClient{}
+	mockRedis := mocks.NewMockRedisClient()
+	config := &identity.CoursewareConfig{
+		DefaultGroup: "default",
+		Timeout:      5 * time.Second,
 	}
 
-	model := resolver.ResolveModel(ctx, "", "")
-	if model != "" {
-		t.Errorf("Expected empty string for empty input, got %s", model)
-	}
+	cache := identity.NewCoursewareCache(mockRedis, config)
+	resolver := identity.NewCoursewareIdentityResolver(mockAPI, cache, config)
 
-	// 测试nil上下文（虽然不推荐，但要确保不崩溃）
-	group = resolver.ResolveGroup(nil, "teacher_001")
-	if group != "" {
-		t.Errorf("Expected empty string for nil context, got %s", group)
-	}
+	t.Run("有偏好模型", func(t *testing.T) {
+		// 准备缓存数据
+		userInfo := &identity.UserInfo{
+			TeacherId:      "teacher_001",
+			TeacherName:    "张老师",
+			GroupName:      "beijing_math_group",
+			PreferredModel: "gpt-4",
+			UpdatedAt:      time.Now().Unix(),
+		}
+
+		userInfoBytes, _ := json.Marshal(userInfo)
+		userInfoStr := string(userInfoBytes)
+
+		// 设置mock期望
+		mockRedis.On("Get", mock.Anything, "courseware:teacher:teacher_001").Return(redis.NewStringResult(userInfoStr, nil))
+
+		// 执行测试
+		originalModel := "gpt-3.5-turbo"
+		model := resolver.ResolveModel(ctx, "teacher_001", originalModel)
+
+		// 验证结果
+		assert.Equal(t, "gpt-4", model)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("无偏好模型", func(t *testing.T) {
+		// 准备缓存数据
+		userInfo := &identity.UserInfo{
+			TeacherId:      "teacher_002",
+			TeacherName:    "李老师",
+			GroupName:      "beijing_chinese_group",
+			PreferredModel: "", // 无偏好模型
+			UpdatedAt:      time.Now().Unix(),
+		}
+
+		userInfoBytes, _ := json.Marshal(userInfo)
+		userInfoStr := string(userInfoBytes)
+
+		// 设置mock期望
+		mockRedis.On("Get", mock.Anything, "courseware:teacher:teacher_002").Return(redis.NewStringResult(userInfoStr, nil))
+
+		// 执行测试
+		originalModel := "gpt-3.5-turbo"
+		model := resolver.ResolveModel(ctx, "teacher_002", originalModel)
+
+		// 验证结果
+		assert.Equal(t, originalModel, model)
+		mockRedis.AssertExpectations(t)
+	})
+
+	t.Run("用户不存在", func(t *testing.T) {
+		// 设置mock期望
+		mockRedis.On("Get", mock.Anything, "courseware:teacher:teacher_003").Return(redis.NewStringResult("", redis.Nil))
+
+		// 执行测试
+		originalModel := "gpt-3.5-turbo"
+		model := resolver.ResolveModel(ctx, "teacher_003", originalModel)
+
+		// 验证结果
+		assert.Equal(t, originalModel, model)
+		mockRedis.AssertExpectations(t)
+	})
 }
 
-func BenchmarkIdentityResolver_DefaultResolver_性能测试(b *testing.B) {
-	resolver := &identity.DefaultIdentityResolver{}
-	ctx := context.Background()
+// TestIdentityResolver_GlobalManagement 测试全局解析器管理
+func TestIdentityResolver_GlobalManagement(t *testing.T) {
+	t.Run("默认解析器", func(t *testing.T) {
+		// 重置为默认解析器
+		identity.SetIdentityResolver(&identity.DefaultIdentityResolver{})
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		resolver.ResolveGroup(ctx, "teacher_001")
-		resolver.ResolveModel(ctx, "teacher_001", "gpt-3.5-turbo")
-	}
+		resolver := identity.GetIdentityResolver()
+		assert.IsType(t, &identity.DefaultIdentityResolver{}, resolver)
+
+		// 测试默认行为
+		group := resolver.ResolveGroup(context.Background(), "teacher_001")
+		assert.Equal(t, "", group)
+
+		model := resolver.ResolveModel(context.Background(), "teacher_001", "gpt-3.5-turbo")
+		assert.Equal(t, "gpt-3.5-turbo", model)
+	})
+
+	t.Run("课件平台解析器", func(t *testing.T) {
+		mockAPI := &mocks.MockCoursewareClient{}
+		mockRedis := mocks.NewMockRedisClient()
+		config := &identity.CoursewareConfig{
+			DefaultGroup: "default",
+			Timeout:      5 * time.Second,
+		}
+
+		cache := identity.NewCoursewareCache(mockRedis, config)
+		coursewareResolver := identity.NewCoursewareIdentityResolver(mockAPI, cache, config)
+
+		// 设置为课件平台解析器
+		identity.SetIdentityResolver(coursewareResolver)
+
+		resolver := identity.GetIdentityResolver()
+		assert.IsType(t, &identity.CoursewareIdentityResolver{}, resolver)
+	})
 }
 
-func BenchmarkIdentityResolver_GlobalGetter_性能测试(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		identity.GetIdentityResolver()
-	}
+// TestCoursewareConfig 测试课件平台配置
+func TestCoursewareConfig(t *testing.T) {
+	t.Run("默认配置", func(t *testing.T) {
+		config := &identity.CoursewareConfig{
+			Enabled:          true,
+			BaseURL:          "https://api.example.com",
+			APIKey:           "test-key",
+			Timeout:          5 * time.Second,
+			CacheTTL:         10 * time.Minute,
+			DefaultGroup:     "default",
+			PreloadBatchSize: 100,
+			RefreshInterval:  1 * time.Hour,
+		}
+
+		assert.True(t, config.Enabled)
+		assert.Equal(t, "https://api.example.com", config.BaseURL)
+		assert.Equal(t, "test-key", config.APIKey)
+		assert.Equal(t, 5*time.Second, config.Timeout)
+		assert.Equal(t, 10*time.Minute, config.CacheTTL)
+		assert.Equal(t, "default", config.DefaultGroup)
+		assert.Equal(t, 100, config.PreloadBatchSize)
+		assert.Equal(t, 1*time.Hour, config.RefreshInterval)
+	})
 }

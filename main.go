@@ -18,6 +18,7 @@ import (
 	"github.com/songquanpeng/one-api/common/logger"
 	"github.com/songquanpeng/one-api/controller"
 	"github.com/songquanpeng/one-api/middleware"
+	identityMiddleware "github.com/songquanpeng/one-api/middleware/identity"
 	"github.com/songquanpeng/one-api/model"
 	"github.com/songquanpeng/one-api/model/identity"
 	"github.com/songquanpeng/one-api/relay/adaptor/openai"
@@ -65,6 +66,9 @@ func main() {
 	if common.RedisEnabled {
 		// 初始化身份解析包
 		identity.Init()
+
+		// 初始化身份解析器 (v3.0功能)
+		identityMiddleware.InitializeIdentityResolver()
 	}
 
 	// Initialize options
