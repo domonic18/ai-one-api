@@ -5,7 +5,6 @@ import (
 
 	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/model"
-	"github.com/songquanpeng/one-api/model/identity"
 	"gorm.io/gorm"
 )
 
@@ -271,8 +270,68 @@ func InsertTestData(db *gorm.DB) error {
 		return err
 	}
 
+	// 获取插入的用户ID映射
+	var users []model.User
+	if err := db.Find(&users).Error; err != nil {
+		return err
+	}
+
+	// 创建用户ID映射
+	userIDMap := make(map[string]int)
+	for _, user := range users {
+		userIDMap[user.Username] = user.Id
+	}
+
+	// 创建动态令牌数据，使用实际的用户ID
+	dynamicTokenData := []model.Token{
+		{
+			UserId:         userIDMap["admin"],
+			Key:            "sk-admin-token",
+			Name:           "管理员令牌",
+			Status:         1,
+			RemainQuota:    -1,
+			UnlimitedQuota: true,
+			Models:         stringPtr("gpt-3.5-turbo,gpt-4,claude-3,dall-e-3"),
+			CreatedTime:    time.Now().Unix(),
+			AccessedTime:   time.Now().Unix(),
+		},
+		{
+			UserId:         userIDMap["testuser"],
+			Key:            "sk-test-token",
+			Name:           "测试令牌",
+			Status:         1,
+			RemainQuota:    8000,
+			UnlimitedQuota: false,
+			Models:         stringPtr("gpt-3.5-turbo"),
+			Subnet:         stringPtr("192.168.1.0/24"),
+			CreatedTime:    time.Now().Unix() - 3600,
+			AccessedTime:   time.Now().Unix(),
+		},
+		{
+			UserId:         userIDMap["premium"],
+			Key:            "sk-premium-token",
+			Name:           "高级令牌",
+			Status:         1,
+			RemainQuota:    40000,
+			UnlimitedQuota: false,
+			Models:         stringPtr("gpt-3.5-turbo,gpt-4"),
+			CreatedTime:    time.Now().Unix() - 7200,
+			AccessedTime:   time.Now().Unix(),
+		},
+		{
+			UserId:       userIDMap["testuser"],
+			Key:          "sk-expired-token",
+			Name:         "过期令牌",
+			Status:       1,
+			RemainQuota:  1000,
+			ExpiredTime:  time.Now().Unix() - 86400,
+			CreatedTime:  time.Now().Unix() - 172800,
+			AccessedTime: time.Now().Unix() - 86400,
+		},
+	}
+
 	// 插入令牌数据
-	if err := db.CreateInBatches(TestTokenData, len(TestTokenData)).Error; err != nil {
+	if err := db.CreateInBatches(dynamicTokenData, len(dynamicTokenData)).Error; err != nil {
 		return err
 	}
 
@@ -281,8 +340,40 @@ func InsertTestData(db *gorm.DB) error {
 		return err
 	}
 
+	// 创建动态日志数据，使用实际的用户ID
+	dynamicLogData := []model.Log{
+		{
+			UserId:           userIDMap["testuser"],
+			Type:             2, // 消费日志
+			Username:         "testuser",
+			TokenName:        "sk-test-token",
+			ModelName:        "gpt-3.5-turbo",
+			Quota:            100,
+			PromptTokens:     200,
+			CompletionTokens: 100,
+			ChannelId:        1,
+			ElapsedTime:      1500,
+			Content:          "测试日志内容",
+			CreatedAt:        time.Now().Unix(),
+		},
+		{
+			UserId:           userIDMap["premium"],
+			Type:             2, // 消费日志
+			Username:         "premium",
+			TokenName:        "sk-premium-token",
+			ModelName:        "gpt-4",
+			Quota:            500,
+			PromptTokens:     1000,
+			CompletionTokens: 500,
+			ChannelId:        2,
+			ElapsedTime:      3000,
+			Content:          "高级用户日志内容",
+			CreatedAt:        time.Now().Unix() - 3600,
+		},
+	}
+
 	// 插入日志数据
-	if err := db.CreateInBatches(TestLogData, len(TestLogData)).Error; err != nil {
+	if err := db.CreateInBatches(dynamicLogData, len(dynamicLogData)).Error; err != nil {
 		return err
 	}
 
@@ -293,14 +384,13 @@ func InsertTestData(db *gorm.DB) error {
 func ClearTestData(db *gorm.DB) error {
 	// 按照外键依赖关系的逆序删除数据
 	tables := []interface{}{
-		&identity.ExtendedLog{}, // 扩展日志表
-		&model.Log{},            // 日志表
-		&model.Redemption{},     // 兑换码表
-		&model.Ability{},        // 能力表
-		&model.Channel{},        // 渠道表
-		&model.Token{},          // 令牌表
-		&model.Option{},         // 选项表
-		&model.User{},           // 用户表
+		&model.Log{},        // 日志表
+		&model.Redemption{}, // 兑换码表
+		&model.Ability{},    // 能力表
+		&model.Channel{},    // 渠道表
+		&model.Token{},      // 令牌表
+		&model.Option{},     // 选项表
+		&model.User{},       // 用户表
 	}
 
 	for _, table := range tables {

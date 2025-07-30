@@ -24,7 +24,4 @@ func main() {
 	fmt.Println("✓ 扩展日志表已创建")
 
 	fmt.Println("\n🎉 数据库迁移执行成功！")
-	fmt.Println("\n下一步:")
-	fmt.Println("1. 运行数据完整性检查: go run scripts/cmd/data_integrity_check.go")
-	fmt.Println("2. 运行迁移测试: go run scripts/cmd/db_migration_test.go")
 }

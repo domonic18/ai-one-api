@@ -30,12 +30,12 @@ func (cl *ConfigLoader) LoadConfig(filename string) error {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		
+
 		// 跳过空行和注释
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		
+
 		// 解析键值对
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) == 2 {
@@ -69,8 +69,8 @@ func (cl *ConfigLoader) PrintConfig() {
 	fmt.Println("当前配置:")
 	for key, value := range cl.config {
 		// 隐藏敏感信息
-		if strings.Contains(strings.ToLower(key), "token") || 
-		   strings.Contains(strings.ToLower(key), "password") {
+		if strings.Contains(strings.ToLower(key), "token") ||
+			strings.Contains(strings.ToLower(key), "password") {
 			fmt.Printf("  %s: ***隐藏***\n", key)
 		} else {
 			fmt.Printf("  %s: %s\n", key, value)

@@ -45,7 +45,7 @@ func main() {
 func parseFlags() *TokenCheckParams {
 	var tokenKey, format string
 	var showHelp bool
-	
+
 	flag.StringVar(&tokenKey, "token", "", "令牌密钥")
 	flag.StringVar(&format, "format", "detailed", "输出格式: brief, detailed, json")
 	flag.BoolVar(&showHelp, "help", false, "显示帮助信息")
@@ -121,7 +121,7 @@ func printDetailedTokenInfo(token *model.Token) {
 	fmt.Printf("令牌ID: %d\n", token.Id)
 	fmt.Printf("用户ID: %d\n", token.UserId)
 	fmt.Printf("令牌名称: %s\n", token.Name)
-	
+
 	// 格式化配额显示
 	if config.DisplayInCurrencyEnabled {
 		fmt.Printf("剩余配额: %.6f 美元\n", float64(token.RemainQuota)/config.QuotaPerUnit)
@@ -130,9 +130,9 @@ func printDetailedTokenInfo(token *model.Token) {
 		fmt.Printf("剩余配额: %d 点\n", token.RemainQuota)
 		fmt.Printf("已用配额: %d 点\n", token.UsedQuota)
 	}
-	
+
 	fmt.Printf("无限配额: %t\n", token.UnlimitedQuota)
-	
+
 	// 格式化状态显示
 	statusText := "未知"
 	switch token.Status {
@@ -144,7 +144,7 @@ func printDetailedTokenInfo(token *model.Token) {
 		statusText = "已过期"
 	}
 	fmt.Printf("令牌状态: %s (%d)\n", statusText, token.Status)
-	
+
 	// 格式化过期时间显示
 	if token.ExpiredTime == -1 {
 		fmt.Printf("过期时间: 永不过期\n")
@@ -152,7 +152,7 @@ func printDetailedTokenInfo(token *model.Token) {
 		expireTime := time.Unix(token.ExpiredTime, 0)
 		fmt.Printf("过期时间: %s\n", expireTime.Format("2006-01-02 15:04:05"))
 	}
-	
+
 	// 检查配额是否足够
 	if token.RemainQuota <= 0 && !token.UnlimitedQuota {
 		fmt.Printf("⚠️  警告: 令牌配额已用尽\n")
@@ -163,9 +163,9 @@ func printDetailedTokenInfo(token *model.Token) {
 
 // printBriefTokenInfo 打印简要令牌信息
 func printBriefTokenInfo(token *model.Token) {
-	fmt.Printf("令牌名称: %s | 状态: %d | 剩余配额: %d | 已用配额: %d\n", 
+	fmt.Printf("令牌名称: %s | 状态: %d | 剩余配额: %d | 已用配额: %d\n",
 		token.Name, token.Status, token.RemainQuota, token.UsedQuota)
-	
+
 	if token.RemainQuota <= 0 && !token.UnlimitedQuota {
 		fmt.Println("⚠️  配额已用尽")
 	} else {
@@ -177,35 +177,35 @@ func printBriefTokenInfo(token *model.Token) {
 func printJSONTokenInfo(token *model.Token) {
 	// 创建一个简化版本的令牌结构用于JSON输出
 	type SimpleToken struct {
-		ID           int    `json:"id"`
-		UserID       int    `json:"user_id"`
-		Name         string `json:"name"`
-		RemainQuota  int64  `json:"remain_quota"`
-		UsedQuota    int64  `json:"used_quota"`
-		Unlimited    bool   `json:"unlimited_quota"`
-		Status       int    `json:"status"`
-		ExpiredTime  int64  `json:"expired_time"`
-		QuotaSufficient bool  `json:"quota_sufficient"`
+		ID              int    `json:"id"`
+		UserID          int    `json:"user_id"`
+		Name            string `json:"name"`
+		RemainQuota     int64  `json:"remain_quota"`
+		UsedQuota       int64  `json:"used_quota"`
+		Unlimited       bool   `json:"unlimited_quota"`
+		Status          int    `json:"status"`
+		ExpiredTime     int64  `json:"expired_time"`
+		QuotaSufficient bool   `json:"quota_sufficient"`
 	}
-	
+
 	simpleToken := SimpleToken{
-		ID:           token.Id,
-		UserID:       token.UserId,
-		Name:         token.Name,
-		RemainQuota:  token.RemainQuota,
-		UsedQuota:    token.UsedQuota,
-		Unlimited:    token.UnlimitedQuota,
-		Status:       token.Status,
-		ExpiredTime:  token.ExpiredTime,
+		ID:              token.Id,
+		UserID:          token.UserId,
+		Name:            token.Name,
+		RemainQuota:     token.RemainQuota,
+		UsedQuota:       token.UsedQuota,
+		Unlimited:       token.UnlimitedQuota,
+		Status:          token.Status,
+		ExpiredTime:     token.ExpiredTime,
 		QuotaSufficient: !(token.RemainQuota <= 0 && !token.UnlimitedQuota),
 	}
-	
+
 	jsonData, err := json.MarshalIndent(simpleToken, "", "  ")
 	if err != nil {
 		fmt.Printf("序列化JSON失败: %v\n", err)
 		return
 	}
-	
+
 	fmt.Println(string(jsonData))
 }
 
