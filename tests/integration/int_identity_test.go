@@ -252,7 +252,15 @@ func (m *ExtendedCoursePlatformMock) GetRequestStats() map[string]int {
 	return m.store.getRequestStats()
 }
 
-// 测试Redis缓存管理器
+// TestIdentity_CoursewareCache_集成测试 测试课件平台缓存系统的集成功能
+// 测试目的：验证Redis缓存系统在实际环境中的完整功能，包括单个和批量用户信息的缓存操作、缓存未命中处理、缓存过期机制等
+// 测试内容：
+// 1. 测试单个用户信息的设置和获取，验证缓存的基本功能
+// 2. 测试批量用户信息的缓存操作，验证Redis Pipeline的批量处理能力
+// 3. 测试缓存未命中时的正确处理，确保系统能够优雅处理缺失数据
+// 4. 测试缓存过期机制，验证TTL设置的正确性和过期后的数据清理
+// 5. 验证缓存数据的完整性和一致性
+// 6. 测试Redis连接和数据序列化的正确性
 func TestIdentity_CoursewareCache_集成测试(t *testing.T) {
 	// 准备Redis测试环境
 	redisClient := redis.NewClient(&redis.Options{
@@ -384,7 +392,16 @@ func TestIdentity_CoursewareCache_集成测试(t *testing.T) {
 	})
 }
 
-// 测试API客户端扩展
+// TestIdentity_CoursewareAPIClient_集成测试 测试课件平台API客户端的集成功能
+// 测试目的：验证API客户端与课件平台服务器的完整交互功能，包括认证、数据获取、错误处理、超时处理等
+// 测试内容：
+// 1. 测试获取单个老师信息的API调用，验证数据获取的准确性和完整性
+// 2. 测试获取所有老师ID列表的API调用，验证批量数据获取功能
+// 3. 测试批量获取用户信息的API调用，验证批量操作的效率和正确性
+// 4. 测试API认证失败的处理，验证错误响应的正确性
+// 5. 测试API超时处理，验证系统在超时情况下的健壮性
+// 6. 验证API响应的数据格式和字段完整性
+// 7. 测试不存在的用户ID的处理，验证错误边界情况
 func TestIdentity_CoursewareAPIClient_集成测试(t *testing.T) {
 	// 创建模拟服务器
 	mockServer := NewExtendedCoursePlatformMock()
@@ -465,7 +482,16 @@ func TestIdentity_CoursewareAPIClient_集成测试(t *testing.T) {
 	})
 }
 
-// 测试预加载管理器
+// TestIdentity_PreloadManager_集成测试 测试用户信息预加载管理器的集成功能
+// 测试目的：验证预加载管理器能够正确地从API获取用户信息并批量缓存到Redis，提高系统性能和响应速度
+// 测试内容：
+// 1. 测试预加载所有用户信息的功能，验证批量数据获取和缓存操作
+// 2. 测试预加载的分批处理机制，验证大数据量时的分批处理能力
+// 3. 测试预加载API失败的处理，验证错误情况下的系统稳定性
+// 4. 验证预加载后的缓存数据完整性和准确性
+// 5. 测试不同批次大小配置下的预加载效果
+// 6. 验证API调用统计和性能监控功能
+// 7. 测试预加载过程中的并发安全性
 func TestIdentity_PreloadManager_集成测试(t *testing.T) {
 	// 准备Redis测试环境
 	redisClient := redis.NewClient(&redis.Options{
@@ -559,7 +585,17 @@ func TestIdentity_PreloadManager_集成测试(t *testing.T) {
 	})
 }
 
-// 测试身份解析器完整流程
+// TestIdentity_CompleteFlow_集成测试 测试身份解析器的完整业务流程
+// 测试目的：验证身份解析器在实际业务场景中的完整工作流程，包括缓存命中、API调用、并发处理、错误降级等
+// 测试内容：
+// 1. 测试完整的身份解析流程，包括首次解析（缓存未命中）和后续解析（缓存命中）
+// 2. 测试用户组解析功能，验证不同场景下的用户组识别和分配
+// 3. 测试模型解析功能，验证用户偏好模型的正确应用
+// 4. 测试并发访问场景，验证系统在高并发下的稳定性和数据一致性
+// 5. 测试缓存和API混合场景，验证部分缓存命中、部分API调用的复杂情况
+// 6. 测试不存在的用户处理，验证默认值和降级策略的正确性
+// 7. 验证解析结果的准确性和一致性
+// 8. 测试系统的性能和响应时间
 func TestIdentity_CompleteFlow_集成测试(t *testing.T) {
 	// 准备Redis测试环境
 	redisClient := redis.NewClient(&redis.Options{
@@ -659,7 +695,17 @@ func TestIdentity_CompleteFlow_集成测试(t *testing.T) {
 	})
 }
 
-// 测试错误处理和边界情况
+// TestIdentity_ErrorHandling_集成测试 测试身份解析系统的错误处理和边界情况
+// 测试目的：验证系统在各种异常情况和边界条件下的健壮性，确保系统能够优雅处理错误并保持稳定运行
+// 测试内容：
+// 1. 测试Redis连接失败的处理，验证系统在缓存服务不可用时的降级策略
+// 2. 测试空数据输入的处理，验证系统对空值和无效数据的容错能力
+// 3. 测试大数据量场景，验证系统在处理大量用户信息时的性能和稳定性
+// 4. 测试网络异常和超时情况的处理，验证系统的错误恢复能力
+// 5. 测试数据序列化和反序列化的错误处理，验证数据完整性保护
+// 6. 测试系统资源限制情况下的处理，验证内存和连接池的管理
+// 7. 验证错误日志记录和监控功能的正确性
+// 8. 测试系统在异常情况下的降级和恢复机制
 func TestIdentity_ErrorHandling_集成测试(t *testing.T) {
 	// 准备Redis测试环境
 	redisClient := redis.NewClient(&redis.Options{

@@ -99,6 +99,13 @@ func (m *MockRedisClient) Pipeline() redis.Pipeliner {
 // 确保MockRedisClient实现了RedisClient接口
 var _ identity.RedisClient = (*MockRedisClient)(nil)
 
+// TestCoursewareCache_GetUserInfo_缓存命中 测试课件平台缓存系统的缓存命中功能
+// 测试目的：验证缓存系统能够正确从Redis缓存中获取用户信息，避免重复的API调用
+// 测试内容：
+// 1. 测试缓存中存在用户信息时的获取逻辑
+// 2. 验证返回的用户信息字段完整性
+// 3. 验证缓存命中时不会触发API调用
+// 4. 确保缓存数据的正确性和一致性
 func TestCoursewareCache_GetUserInfo_缓存命中(t *testing.T) {
 	// 准备测试数据
 	mockRedis := NewMockRedisClient()
@@ -141,6 +148,13 @@ func TestCoursewareCache_GetUserInfo_缓存命中(t *testing.T) {
 	mockRedis.AssertExpectations(t)
 }
 
+// TestCoursewareCache_GetUserInfo_缓存未命中 测试课件平台缓存系统的缓存未命中处理
+// 测试目的：验证缓存系统在缓存未命中时的正确行为，确保系统能够优雅处理缓存缺失情况
+// 测试内容：
+// 1. 测试缓存中不存在用户信息时的处理逻辑
+// 2. 验证缓存未命中时返回nil结果
+// 3. 确保不会因为缓存未命中而导致系统错误
+// 4. 验证Redis连接和查询的正确性
 func TestCoursewareCache_GetUserInfo_缓存未命中(t *testing.T) {
 	// 准备测试数据
 	mockRedis := NewMockRedisClient()
@@ -163,6 +177,14 @@ func TestCoursewareCache_GetUserInfo_缓存未命中(t *testing.T) {
 	mockRedis.AssertExpectations(t)
 }
 
+// TestCoursewareCache_SetUserInfo_设置成功 测试课件平台缓存系统的用户信息设置功能
+// 测试目的：验证缓存系统能够正确将用户信息存储到Redis缓存中，为后续的缓存命中提供数据基础
+// 测试内容：
+// 1. 测试用户信息成功存储到Redis的逻辑
+// 2. 验证存储的数据完整性和正确性
+// 3. 验证缓存TTL设置的正确性
+// 4. 确保数据序列化和反序列化的准确性
+// 5. 验证Redis操作的原子性和一致性
 func TestCoursewareCache_SetUserInfo_设置成功(t *testing.T) {
 	// 准备测试数据
 	mockRedis := NewMockRedisClient()
@@ -210,6 +232,14 @@ func TestCoursewareCache_SetUserInfo_设置成功(t *testing.T) {
 
 // 注意：批量设置测试依赖于Redis Pipeline功能，在简化测试中跳过
 
+// TestCoursewareIdentityResolver_ResolveGroup_缓存命中 测试课件平台身份解析器的用户组解析功能（缓存命中场景）
+// 测试目的：验证身份解析器在缓存命中的情况下能够快速返回用户组信息，提高系统响应性能
+// 测试内容：
+// 1. 测试缓存中存在用户信息时的用户组解析逻辑
+// 2. 验证返回的用户组名称正确性
+// 3. 验证缓存命中时不会触发API调用，提高性能
+// 4. 确保缓存数据的有效性和时效性
+// 5. 验证解析器与缓存系统的正确集成
 func TestCoursewareIdentityResolver_ResolveGroup_缓存命中(t *testing.T) {
 	// 准备测试数据
 	mockRedis := NewMockRedisClient()
@@ -251,6 +281,15 @@ func TestCoursewareIdentityResolver_ResolveGroup_缓存命中(t *testing.T) {
 	mockRedis.AssertExpectations(t)
 }
 
+// TestCoursewareIdentityResolver_ResolveGroup_缓存未命中_API成功 测试课件平台身份解析器的用户组解析功能（缓存未命中但API成功场景）
+// 测试目的：验证身份解析器在缓存未命中时能够正确调用API获取用户信息，并将结果缓存以提高后续访问性能
+// 测试内容：
+// 1. 测试缓存未命中时的API调用逻辑
+// 2. 验证API返回数据的正确解析和处理
+// 3. 验证获取到的用户信息正确存储到缓存中
+// 4. 确保用户组信息的准确性和一致性
+// 5. 验证缓存更新机制的正确性
+// 6. 测试API调用与缓存存储的完整流程
 func TestCoursewareIdentityResolver_ResolveGroup_缓存未命中_API成功(t *testing.T) {
 	// 准备测试数据
 	mockRedis := NewMockRedisClient()
@@ -297,6 +336,15 @@ func TestCoursewareIdentityResolver_ResolveGroup_缓存未命中_API成功(t *te
 	mockRedis.AssertExpectations(t)
 }
 
+// TestCoursewareIdentityResolver_ResolveGroup_API失败_使用默认分组 测试课件平台身份解析器的用户组解析功能（API调用失败场景）
+// 测试目的：验证身份解析器在API调用失败时能够优雅降级，使用默认用户组确保系统的可用性和稳定性
+// 测试内容：
+// 1. 测试API调用失败时的错误处理逻辑
+// 2. 验证系统能够正确返回默认用户组
+// 3. 确保API失败不会影响系统的正常运行
+// 4. 验证错误处理的健壮性和容错性
+// 5. 测试系统在异常情况下的降级策略
+// 6. 确保用户体验的连续性和一致性
 func TestCoursewareIdentityResolver_ResolveGroup_API失败_使用默认分组(t *testing.T) {
 	// 准备测试数据
 	mockRedis := NewMockRedisClient()
@@ -328,6 +376,15 @@ func TestCoursewareIdentityResolver_ResolveGroup_API失败_使用默认分组(t 
 	mockRedis.AssertExpectations(t)
 }
 
+// TestCoursewareIdentityResolver_ResolveModel_有偏好模型 测试课件平台身份解析器的模型解析功能（用户有偏好模型场景）
+// 测试目的：验证身份解析器能够正确识别用户的偏好模型设置，并优先使用用户指定的模型进行AI对话
+// 测试内容：
+// 1. 测试用户有偏好模型时的模型解析逻辑
+// 2. 验证系统能够正确返回用户的偏好模型
+// 3. 确保偏好模型设置能够覆盖默认模型选择
+// 4. 验证模型解析的准确性和一致性
+// 5. 测试用户个性化配置的有效性
+// 6. 确保模型选择逻辑的正确性
 func TestCoursewareIdentityResolver_ResolveModel_有偏好模型(t *testing.T) {
 	// 准备测试数据
 	mockRedis := NewMockRedisClient()
@@ -368,6 +425,15 @@ func TestCoursewareIdentityResolver_ResolveModel_有偏好模型(t *testing.T) {
 	mockRedis.AssertExpectations(t)
 }
 
+// TestCoursewareIdentityResolver_ResolveModel_无偏好模型 测试课件平台身份解析器的模型解析功能（用户无偏好模型场景）
+// 测试目的：验证身份解析器在用户没有设置偏好模型时能够正确使用原始模型，确保系统的默认行为符合预期
+// 测试内容：
+// 1. 测试用户无偏好模型时的模型解析逻辑
+// 2. 验证系统能够正确返回原始模型
+// 3. 确保无偏好模型设置不会影响正常的模型选择
+// 4. 验证默认模型选择的正确性
+// 5. 测试系统在用户未配置偏好时的默认行为
+// 6. 确保模型解析逻辑的健壮性
 func TestCoursewareIdentityResolver_ResolveModel_无偏好模型(t *testing.T) {
 	// 准备测试数据
 	mockRedis := NewMockRedisClient()
