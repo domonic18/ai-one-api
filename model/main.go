@@ -161,9 +161,7 @@ func migrateDB() error {
 	if err = DB.AutoMigrate(&Log{}); err != nil {
 		return err
 	}
-	if err = DB.AutoMigrate(&ExtendedLog{}); err != nil {
-		return err
-	}
+	// ExtendedLog 现在由 identity 包管理，在 identity.Init() 中进行迁移
 	if err = DB.AutoMigrate(&Channel{}); err != nil {
 		return err
 	}
