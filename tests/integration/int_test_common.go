@@ -160,8 +160,9 @@ func createTestUser(db *gorm.DB, username, password string, role int) *model.Use
 		accessToken = accessToken[:32]
 	}
 
-	// 生成较短的aff_code
-	affCode := "aff-" + username
+	// 生成唯一的aff_code，使用时间戳避免重复
+	timestamp := time.Now().UnixNano()
+	affCode := fmt.Sprintf("aff%d", timestamp%100000)
 	if len(affCode) > 8 {
 		affCode = affCode[:8]
 	}
