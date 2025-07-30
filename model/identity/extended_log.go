@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/songquanpeng/one-api/common/logger"
+	"github.com/songquanpeng/one-api/middleware/identity"
 	"github.com/songquanpeng/one-api/model"
 	"gorm.io/gorm"
 )
@@ -15,7 +16,7 @@ import (
 // 符合实现方案v3.0版本设计，使用JSON字段存储维度信息
 type ExtendedLog struct {
 	Id             int64     `json:"id" gorm:"primaryKey;autoIncrement"`
-	LogId          int64     `json:"log_id" gorm:"not null;index;uniqueIndex"`        // 关联OneAPI原始日志ID
+	LogId          int64     `json:"log_id" gorm:"not null;uniqueIndex"`              // 关联OneAPI原始日志ID
 	ExternalUserId string    `json:"external_user_id" gorm:"type:varchar(100);index"` // 外部用户ID（如teacher_id）
 	UserGroup      string    `json:"user_group" gorm:"type:varchar(100);index"`       // OneAPI用户组
 	DimensionInfo  string    `json:"dimension_info" gorm:"type:json"`                 // 多维度统计维度信息（JSON格式）
@@ -170,7 +171,7 @@ func (el *ExtendedLog) GetDimensionInfo() (*DimensionInfo, error) {
 }
 
 // RecordExtendedLog 异步记录扩展日志
-// 根据实现方案v3.0版本设计，从Redis缓存获取用户信息
+// 根据实现方案v3.0版本设计，从身份解析器获取用户信息
 func RecordExtendedLog(ctx context.Context, logId int64, externalUserId string) {
 	if externalUserId == "" {
 		return // 没有外部用户ID，跳过扩展日志
@@ -178,18 +179,38 @@ func RecordExtendedLog(ctx context.Context, logId int64, externalUserId string) 
 
 	// 异步记录扩展日志，不影响主流程
 	go func() {
-		// TODO: 在迭代二中实现从Redis缓存获取用户信息的逻辑
-		// 这里先使用简化实现，仅记录基本信息
-		userGroup := "default" // 临时使用默认值
-		dimensionInfo := &DimensionInfo{
-			TeacherName: externalUserId, // 临时使用用户ID作为教师名称
+		// 1. 获取身份解析器
+		resolver := identity.GetIdentityResolver()
+		if resolver == nil {
+			logger.Warnf(ctx, "身份解析器未初始化，跳过扩展日志: externalUserId=%s", externalUserId)
+			return
 		}
 
+		// 2. 获取用户组
+		userGroup := resolver.ResolveGroup(ctx, externalUserId)
+		if userGroup == "" {
+			logger.Debugf(ctx, "用户组解析为空，跳过扩展日志: externalUserId=%s", externalUserId)
+			return
+		}
+
+		// 3. 尝试从缓存获取用户详细信息
+		var dimensionInfo *DimensionInfo
+		// 注意：由于缓存字段是私有的，我们暂时跳过详细信息的获取
+		// 在实际使用中，可以通过公共方法或接口来获取这些信息
+
+		// 4. 如果没有详细信息，使用基本信息
+		if dimensionInfo == nil {
+			dimensionInfo = &DimensionInfo{
+				TeacherName: externalUserId, // 使用用户ID作为教师名称
+			}
+		}
+
+		// 5. 创建扩展日志
 		_, err := CreateExtendedLog(ctx, logId, externalUserId, userGroup, dimensionInfo)
 		if err != nil {
 			logger.Warnf(ctx, "记录扩展日志失败: logId=%d, externalUserId=%s, error=%v", logId, externalUserId, err)
 		} else {
-			logger.Debugf(ctx, "扩展日志记录成功: logId=%d, externalUserId=%s", logId, externalUserId)
+			logger.Debugf(ctx, "扩展日志记录成功: logId=%d, externalUserId=%s, group=%s", logId, externalUserId, userGroup)
 		}
 	}()
 }
