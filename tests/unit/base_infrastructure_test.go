@@ -1,24 +1,38 @@
 package unit
 
 import (
+	"os"
 	"testing"
 	"time"
 
-	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/model/identity"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
 func setupSimpleTestDB() *gorm.DB {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		panic("failed to connect database")
+	// 设置测试环境变量
+	if os.Getenv("SQL_DSN") == "" {
+		os.Setenv("SQL_DSN", "testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local")
 	}
 
-	// 设置 SQLite 标志
-	common.UsingSQLite = true
+	// 连接MySQL数据库
+	db, err := gorm.Open(mysql.Open(os.Getenv("SQL_DSN")), &gorm.Config{
+		PrepareStmt:                              true,
+		DisableForeignKeyConstraintWhenMigrating: false,
+	})
+	if err != nil {
+		panic("failed to connect to test MySQL database: " + err.Error())
+	}
+
+	// 设置数据库连接
+	model.DB = db
+	model.LOG_DB = db
+
+	// 先删除可能存在的表，避免冲突
+	db.Migrator().DropTable(&identity.ExtendedLog{})
 
 	// 迁移所有必要的表结构
 	err = db.AutoMigrate(
@@ -27,9 +41,12 @@ func setupSimpleTestDB() *gorm.DB {
 		&model.Channel{},
 		&model.Ability{},
 		&model.Log{},
+		&model.Option{},
+		&model.Redemption{},
+		&identity.ExtendedLog{},
 	)
 	if err != nil {
-		panic("failed to migrate database")
+		panic("failed to migrate database: " + err.Error())
 	}
 
 	return db

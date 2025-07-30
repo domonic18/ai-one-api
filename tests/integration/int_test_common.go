@@ -16,6 +16,7 @@ import (
 	"github.com/songquanpeng/one-api/common/client"
 	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/model/identity"
 	"github.com/songquanpeng/one-api/relay/adaptor/openai"
 	"github.com/songquanpeng/one-api/router"
 	"github.com/songquanpeng/one-api/tests/fixtures"
@@ -77,6 +78,7 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 		&model.Ability{},
 		&model.Option{},
 		&model.Redemption{},
+		&identity.ExtendedLog{},
 	)
 	if err != nil {
 		panic("failed to migrate database: " + err.Error())
