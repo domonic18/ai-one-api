@@ -22,7 +22,7 @@ var availableScripts = []ScriptInfo{
 	{
 		Name:        "redis",
 		Description: "Redis助手工具 - 管理用户模型配置",
-		File:        "cmd/redis_helper.go",
+		File:        "redis/main.go",
 		Examples: []string{
 			"go run runner.go redis -action list",
 			"go run runner.go redis -action batch",
@@ -32,7 +32,7 @@ var availableScripts = []ScriptInfo{
 	{
 		Name:        "smart-model",
 		Description: "智能模型选择测试工具 - 测试智能模型选择功能",
-		File:        "cmd/smart_model_test.go",
+		File:        "smart-model/main.go",
 		Examples: []string{
 			"go run runner.go smart-model -action help",
 			"go run runner.go smart-model -action setup -user teacher_001 -model gpt-4-turbo",
@@ -42,7 +42,7 @@ var availableScripts = []ScriptInfo{
 	{
 		Name:        "token",
 		Description: "令牌状态检查工具 - 检查令牌状态和配额",
-		File:        "cmd/token_checker.go",
+		File:        "token/main.go",
 		Examples: []string{
 			"go run runner.go token -token sk-xxxxxx",
 			"go run runner.go token -token sk-xxxxxx -format json",
@@ -169,7 +169,7 @@ func runAllRunnerScripts(scriptDir string) error {
 // showRunnerConfig 显示当前配置信息
 func showRunnerConfig() error {
 	fmt.Println("🔧 显示当前配置信息...")
-	
+
 	// 尝试加载配置文件
 	configFile := ".env"
 	if _, err := os.Stat(configFile); err == nil {
@@ -184,8 +184,8 @@ func showRunnerConfig() error {
 				if len(parts) == 2 {
 					key := strings.TrimSpace(parts[0])
 					value := strings.TrimSpace(parts[1])
-					if strings.Contains(strings.ToLower(key), "token") || 
-					   strings.Contains(strings.ToLower(key), "password") {
+					if strings.Contains(strings.ToLower(key), "token") ||
+						strings.Contains(strings.ToLower(key), "password") {
 						fmt.Printf("  %s: ***隐藏***\n", key)
 					} else {
 						fmt.Printf("  %s: %s\n", key, value)
@@ -202,8 +202,7 @@ func showRunnerConfig() error {
 
 // printRunnerUsage 打印使用帮助
 func printRunnerUsage() {
-	fmt.Print(`
-🤖 One-API 辅助脚本运行器
+	fmt.Print(`🤖 One-API 辅助脚本运行器
 =========================
 
 用法: go run runner.go <脚本名称> [选项]
@@ -214,7 +213,7 @@ func printRunnerUsage() {
 		fmt.Printf("  %-12s - %s\n", script.Name, script.Description)
 	}
 
-	fmt.Println(`
+	fmt.Print(`
 示例:
   # 显示所有脚本的帮助信息
   go run runner.go all

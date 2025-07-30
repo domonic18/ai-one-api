@@ -211,7 +211,7 @@ func printJSONTokenInfo(token *model.Token) {
 
 // printUsage 打印使用帮助
 func printUsage() {
-	fmt.Println(`
+	fmt.Print(`
 🤖 One-API 令牌状态检查工具
 =========================
 

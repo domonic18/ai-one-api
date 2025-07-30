@@ -420,7 +420,7 @@ func runAllTests(params *TestParams) error {
 
 // printUsage 打印使用帮助
 func printUsage() {
-	fmt.Println(`
+	fmt.Print(`
 🤖 One-API 智能模型选择测试工具
 ================================
 

@@ -226,7 +226,7 @@ func printConfig(config *model_selection.UserModelConfig) {
 
 // printUsage 打印使用帮助
 func printUsage() {
-	fmt.Println(`
+	fmt.Print(`
 🤖 One-API Redis助手工具
 ========================
 
