@@ -19,18 +19,11 @@ CREATE TABLE IF NOT EXISTS extended_logs (
     created_at timestamp DEFAULT CURRENT_TIMESTAMP,
     updated_at timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
-    -- 索引优化
+    -- 基础索引
     INDEX idx_log_id (log_id),
     INDEX idx_external_user_id (external_user_id),
     INDEX idx_user_group (user_group),
-    INDEX idx_created_at (created_at),
-    
-    -- JSON字段索引（MySQL 5.7+支持）
-    INDEX idx_school_id ((CAST(dimension_info->'$.school_id' AS UNSIGNED))),
-    INDEX idx_subject_id ((CAST(dimension_info->'$.subject_id' AS UNSIGNED))),
-    
-    -- 外键约束
-    FOREIGN KEY (log_id) REFERENCES logs(id) ON DELETE CASCADE
+    INDEX idx_created_at (created_at)
 );
 
 -- 创建成功提示
