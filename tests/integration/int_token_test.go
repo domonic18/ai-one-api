@@ -127,30 +127,52 @@ func TestToken_GetToken(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
 
-	// 使用预定义的测试令牌
-	testToken := fixtures.GetTestToken("sk-test-token")
-	assert.NotNil(t, testToken, "预定义的测试令牌应该存在")
+	// 先登录
+	loginResp := loginUser(r, "testuser", "testpass")
 
-	t.Run("获取令牌详情", func(t *testing.T) {
-		// 先登录
-		loginResp := loginUser(r, "testuser", "testpass")
+	// 获取session cookie
+	cookies := loginResp.Result().Cookies()
+	var sessionCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == "one-api" {
+			sessionCookie = cookie
+			break
+		}
+	}
 
-		// 获取session cookie
-		cookies := loginResp.Result().Cookies()
-		var sessionCookie *http.Cookie
-		for _, cookie := range cookies {
-			if cookie.Name == "one-api" {
-				sessionCookie = cookie
-				break
+	headers := map[string]string{}
+	if sessionCookie != nil {
+		headers["Cookie"] = "one-api=" + sessionCookie.Value
+	}
+
+	// 先获取所有令牌列表，找到测试令牌
+	w := sendRequest(r, "GET", "/api/token/", nil, headers)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var listResponse map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &listResponse)
+	assert.NoError(t, err)
+	assert.Equal(t, true, listResponse["success"])
+
+	// 从列表中找到测试令牌
+	var testTokenID int
+	if data, ok := listResponse["data"].([]interface{}); ok {
+		for _, token := range data {
+			if tokenMap, ok := token.(map[string]interface{}); ok {
+				if name, ok := tokenMap["name"].(string); ok && name == "测试令牌" {
+					if id, ok := tokenMap["id"].(float64); ok {
+						testTokenID = int(id)
+						break
+					}
+				}
 			}
 		}
+	}
 
-		headers := map[string]string{}
-		if sessionCookie != nil {
-			headers["Cookie"] = "one-api=" + sessionCookie.Value
-		}
+	assert.NotZero(t, testTokenID, "应该找到测试令牌")
 
-		w := sendRequest(r, "GET", "/api/token/"+strconv.Itoa(testToken.Id), nil, headers)
+	t.Run("获取令牌详情", func(t *testing.T) {
+		w := sendRequest(r, "GET", "/api/token/"+strconv.Itoa(testTokenID), nil, headers)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
@@ -163,7 +185,7 @@ func TestToken_GetToken(t *testing.T) {
 		// 验证返回的令牌信息
 		if data, ok := response["data"].(map[string]interface{}); ok {
 			assert.Equal(t, "测试令牌", data["name"])
-			assert.Equal(t, float64(testToken.Id), data["id"])
+			assert.Equal(t, float64(testTokenID), data["id"])
 		} else {
 			assert.NotEmpty(t, response["data"])
 		}
@@ -283,33 +305,53 @@ func TestToken_UpdateToken(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
 
-	// 使用预定义的测试用户和令牌
-	testUser := fixtures.GetTestUser("testuser")
-	testToken := fixtures.GetTestToken("sk-test-token")
-	assert.NotNil(t, testUser, "预定义的测试用户应该存在")
-	assert.NotNil(t, testToken, "预定义的测试令牌应该存在")
+	// 先登录
+	loginResp := loginUser(r, "testuser", "testpass")
 
-	t.Run("更新令牌信息", func(t *testing.T) {
-		// 先登录
-		loginResp := loginUser(r, "testuser", "testpass")
+	// 获取session cookie
+	cookies := loginResp.Result().Cookies()
+	var sessionCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == "one-api" {
+			sessionCookie = cookie
+			break
+		}
+	}
 
-		// 获取session cookie
-		cookies := loginResp.Result().Cookies()
-		var sessionCookie *http.Cookie
-		for _, cookie := range cookies {
-			if cookie.Name == "one-api" {
-				sessionCookie = cookie
-				break
+	headers := map[string]string{}
+	if sessionCookie != nil {
+		headers["Cookie"] = "one-api=" + sessionCookie.Value
+	}
+
+	// 先获取所有令牌列表，找到测试令牌
+	w := sendRequest(r, "GET", "/api/token/", nil, headers)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var listResponse map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &listResponse)
+	assert.NoError(t, err)
+	assert.Equal(t, true, listResponse["success"])
+
+	// 从列表中找到测试令牌
+	var testTokenID int
+	if data, ok := listResponse["data"].([]interface{}); ok {
+		for _, token := range data {
+			if tokenMap, ok := token.(map[string]interface{}); ok {
+				if name, ok := tokenMap["name"].(string); ok && name == "测试令牌" {
+					if id, ok := tokenMap["id"].(float64); ok {
+						testTokenID = int(id)
+						break
+					}
+				}
 			}
 		}
+	}
 
-		headers := map[string]string{}
-		if sessionCookie != nil {
-			headers["Cookie"] = "one-api=" + sessionCookie.Value
-		}
+	assert.NotZero(t, testTokenID, "应该找到测试令牌")
 
+	t.Run("更新令牌信息", func(t *testing.T) {
 		payload := map[string]interface{}{
-			"id":     testToken.Id,
+			"id":     testTokenID,
 			"name":   "updated-token",
 			"models": "gpt-4",
 			"status": 1,
@@ -339,32 +381,52 @@ func TestToken_DeleteToken(t *testing.T) {
 	r, db := setupIntegrationTest()
 	defer cleanupTestData(db)
 
-	// 使用预定义的测试用户和令牌
-	testUser := fixtures.GetTestUser("testuser")
-	testToken := fixtures.GetTestToken("sk-test-token")
-	assert.NotNil(t, testUser, "预定义的测试用户应该存在")
-	assert.NotNil(t, testToken, "预定义的测试令牌应该存在")
+	// 先登录
+	loginResp := loginUser(r, "testuser", "testpass")
 
-	t.Run("删除令牌", func(t *testing.T) {
-		// 先登录
-		loginResp := loginUser(r, "testuser", "testpass")
+	// 获取session cookie
+	cookies := loginResp.Result().Cookies()
+	var sessionCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == "one-api" {
+			sessionCookie = cookie
+			break
+		}
+	}
 
-		// 获取session cookie
-		cookies := loginResp.Result().Cookies()
-		var sessionCookie *http.Cookie
-		for _, cookie := range cookies {
-			if cookie.Name == "one-api" {
-				sessionCookie = cookie
-				break
+	headers := map[string]string{}
+	if sessionCookie != nil {
+		headers["Cookie"] = "one-api=" + sessionCookie.Value
+	}
+
+	// 先获取所有令牌列表，找到测试令牌
+	w := sendRequest(r, "GET", "/api/token/", nil, headers)
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var listResponse map[string]interface{}
+	err := json.Unmarshal(w.Body.Bytes(), &listResponse)
+	assert.NoError(t, err)
+	assert.Equal(t, true, listResponse["success"])
+
+	// 从列表中找到测试令牌
+	var testTokenID int
+	if data, ok := listResponse["data"].([]interface{}); ok {
+		for _, token := range data {
+			if tokenMap, ok := token.(map[string]interface{}); ok {
+				if name, ok := tokenMap["name"].(string); ok && name == "测试令牌" {
+					if id, ok := tokenMap["id"].(float64); ok {
+						testTokenID = int(id)
+						break
+					}
+				}
 			}
 		}
+	}
 
-		headers := map[string]string{}
-		if sessionCookie != nil {
-			headers["Cookie"] = "one-api=" + sessionCookie.Value
-		}
+	assert.NotZero(t, testTokenID, "应该找到测试令牌")
 
-		w := sendRequest(r, "DELETE", "/api/token/"+strconv.Itoa(testToken.Id), nil, headers)
+	t.Run("删除令牌", func(t *testing.T) {
+		w := sendRequest(r, "DELETE", "/api/token/"+strconv.Itoa(testTokenID), nil, headers)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
