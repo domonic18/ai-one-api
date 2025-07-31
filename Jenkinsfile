@@ -214,9 +214,13 @@ pipeline {
                     // 启动MySQL服务
                     sh '''
                         echo "启动MySQL测试服务..."
+                        # 创建专用网络（如果不存在）
+                        docker network create oneapi-test-network 2>/dev/null || echo "网络已存在"
+                        
                         docker run -d \
                             --name ${MYSQL_CONTAINER_NAME} \
-                            --network host \
+                            --network oneapi-test-network \
+                            -p 3306:3306 \
                             -e MYSQL_ROOT_PASSWORD=rootpassword \
                             -e MYSQL_DATABASE=oneapi_test \
                             -e MYSQL_USER=testuser \
@@ -278,7 +282,8 @@ pipeline {
                         echo "启动Redis测试服务..."
                         docker run -d \
                             --name ${REDIS_CONTAINER_NAME} \
-                            --network host \
+                            --network oneapi-test-network \
+                            -p 6379:6379 \
                             redis:7-alpine
                         
                         echo "等待Redis服务启动..."
@@ -360,7 +365,7 @@ pipeline {
                         timeout 5 bash -c '</dev/tcp/127.0.0.1/3306' && echo "✅ MySQL连接正常" || echo "❌ MySQL连接失败"
                         timeout 5 bash -c '</dev/tcp/127.0.0.1/6379' && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
                         
-                            cd tests/unit
+                        cd tests/unit
                         go test -v -timeout=5m ./... || {
                             echo "⚠️ 单元测试发现问题，但继续执行"
                             echo "测试结果将在后续分析"
@@ -421,7 +426,7 @@ pipeline {
                         timeout 5 bash -c '</dev/tcp/127.0.0.1/3306' && echo "✅ MySQL连接正常" || echo "❌ MySQL连接失败"
                         timeout 5 bash -c '</dev/tcp/127.0.0.1/6379' && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
                         
-                            cd tests/integration
+                        cd tests/integration
                         go test -v -timeout=${TEST_TIMEOUT} ./... || {
                             echo "⚠️ 集成测试发现问题，但继续执行"
                             echo "测试结果将在后续分析"
@@ -488,6 +493,9 @@ pipeline {
                     echo "清理测试容器..."
                     docker stop ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || echo "容器已停止"
                     docker rm ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || echo "容器已删除"
+                    
+                    echo "清理测试网络..."
+                    docker network rm oneapi-test-network 2>/dev/null || echo "网络已清理或不存在"
                     
                     echo "清理完成"
                 '''
