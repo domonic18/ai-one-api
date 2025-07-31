@@ -26,10 +26,10 @@ pipeline {
                     echo "=== 环境检查 ==="
                     
                     sh '''
-                        echo "Jenkins 工作空间: ${WORKSPACE}"
-                        echo "构建编号: ${BUILD_NUMBER}"
-                        echo "Git 分支: ${GIT_BRANCH}"
-                        
+                    echo "Jenkins 工作空间: ${WORKSPACE}"
+                    echo "构建编号: ${BUILD_NUMBER}"
+                    echo "Git 分支: ${GIT_BRANCH}"
+                    
                         echo "检查Docker环境..."
                         docker --version
                         docker info --format '{{.ServerVersion}}'
@@ -194,10 +194,14 @@ pipeline {
                             -e GLOBAL_API_RATE_LIMIT="$GLOBAL_API_RATE_LIMIT" \
                             -e SESSION_SECRET="$SESSION_SECRET" \
                             -e SYNC_FREQUENCY="$SYNC_FREQUENCY" \
+                            -e GOPROXY="https://goproxy.cn,https://goproxy.io,direct" \
+                            -e GOSUMDB="sum.golang.google.cn" \
+                            -e GO111MODULE="on" \
                             golang:1.21 sh -c "
                                 echo '开始执行单元测试...'
+                                echo 'Go代理配置: \$GOPROXY'
                                 cd tests/unit
-                                go mod download
+                                timeout 300 go mod download || echo '模块下载超时，但继续执行'
                                 go test -v -timeout=${TEST_TIMEOUT} ./...
                                 echo '单元测试执行完成'
                             " || {
@@ -244,10 +248,14 @@ pipeline {
                             -e GLOBAL_API_RATE_LIMIT="$GLOBAL_API_RATE_LIMIT" \
                             -e SESSION_SECRET="$SESSION_SECRET" \
                             -e SYNC_FREQUENCY="$SYNC_FREQUENCY" \
+                            -e GOPROXY="https://goproxy.cn,https://goproxy.io,direct" \
+                            -e GOSUMDB="sum.golang.google.cn" \
+                            -e GO111MODULE="on" \
                             golang:1.21 sh -c "
                                 echo '开始执行集成测试...'
+                                echo 'Go代理配置: \$GOPROXY'
                                 cd tests/integration
-                                go mod download
+                                timeout 300 go mod download || echo '模块下载超时，但继续执行'
                                 go test -v -timeout=${TEST_TIMEOUT} ./...
                                 echo '集成测试执行完成'
                             " || {
@@ -263,7 +271,7 @@ pipeline {
                 script {
                     echo "=== 生成覆盖率报告 ==="
                     
-                    sh '''
+                        sh '''
                         echo "生成测试覆盖率报告..."
                         
                         # 设置测试环境变量（Go容器通过Docker网络连接到测试服务容器）
@@ -280,8 +288,13 @@ pipeline {
                             -e SQL_DSN="$SQL_DSN" \
                             -e REDIS_CONN_STRING="$REDIS_CONN_STRING" \
                             -e DEBUG="$DEBUG" \
+                            -e GOPROXY="https://goproxy.cn,https://goproxy.io,direct" \
+                            -e GOSUMDB="sum.golang.google.cn" \
+                            -e GO111MODULE="on" \
                             golang:1.21 sh -c "
                                 echo '生成测试覆盖率报告...'
+                                echo 'Go代理配置: \$GOPROXY'
+                                timeout 300 go mod download || echo '模块下载超时，但继续执行'
                                 go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo '覆盖率报告生成失败'
                                 go tool cover -html=coverage.out -o coverage.html || echo 'HTML覆盖率报告生成失败'
                                 echo '覆盖率报告生成完成'
