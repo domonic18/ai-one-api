@@ -332,19 +332,38 @@ pipeline {
                         echo "DEBUG: $DEBUG"
                         
                         echo "获取网络配置..."
-                        # 获取宿主机IP（Kubernetes节点IP）
+                        # 获取Jenkins Pod IP
                         HOST_IP=$(hostname -I | awk '{print $1}')
                         echo "Jenkins Pod IP: $HOST_IP"
                         
-                        # 获取默认网关（通常是宿主机）
-                        GATEWAY_IP=$(ip route | grep default | awk '{print $3}' | head -1)
-                        echo "默认网关IP: $GATEWAY_IP"
+                        # 尝试多种方式获取宿主机IP
+                        # 方法1: 通过环境变量获取节点IP
+                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | sed 's/\.[0-9]*$/.1/')}
                         
-                        echo "测试网络连接..."
-                        echo "MySQL连接测试:"
-                        timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/3306" && echo "✅ MySQL端口可达 ($GATEWAY_IP)" || echo "❌ MySQL端口不可达 ($GATEWAY_IP)"
-                        echo "Redis连接测试:"
-                        timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/6379" && echo "✅ Redis端口可达 ($GATEWAY_IP)" || echo "❌ Redis端口不可达 ($GATEWAY_IP)"
+                        # 方法2: 通过DNS解析获取宿主机
+                        HOST_IP_FROM_DNS=$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1}' || echo "")
+                        
+                        # 方法3: 使用常见的网关IP
+                        COMMON_GATEWAYS="172.17.0.1 172.18.0.1 10.244.1.1 192.168.1.1"
+                        
+                        echo "尝试连接测试..."
+                        for ip in $NODE_IP $HOST_IP_FROM_DNS $COMMON_GATEWAYS; do
+                            if [ -n "$ip" ]; then
+                                echo "测试IP: $ip"
+                                if timeout 3 bash -c "</dev/tcp/$ip/3306" 2>/dev/null; then
+                                    echo "✅ MySQL端口可达 ($ip)"
+                                    GATEWAY_IP=$ip
+                                    break
+                                fi
+                            fi
+                        done
+                        
+                        if [ -z "$GATEWAY_IP" ]; then
+                            echo "❌ 无法找到可用的宿主机IP，使用默认配置"
+                            GATEWAY_IP="127.0.0.1"
+                        fi
+                        
+                        echo "最终使用IP: $GATEWAY_IP"
                     '''
                 }
             }
@@ -371,9 +390,29 @@ pipeline {
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         
                         echo "测试前网络连接验证..."
-                        # 获取宿主机网关IP
-                        GATEWAY_IP=$(ip route | grep default | awk '{print $3}' | head -1)
-                        echo "使用网关IP: $GATEWAY_IP"
+                        # 尝试多种方式获取宿主机IP
+                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | sed 's/\.[0-9]*$/.1/')}
+                        HOST_IP_FROM_DNS=$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1}' || echo "")
+                        COMMON_GATEWAYS="172.17.0.1 172.18.0.1 10.244.1.1 192.168.1.1"
+                        
+                        # 寻找可用的宿主机IP
+                        for ip in $NODE_IP $HOST_IP_FROM_DNS $COMMON_GATEWAYS; do
+                            if [ -n "$ip" ]; then
+                                echo "测试IP: $ip"
+                                if timeout 3 bash -c "</dev/tcp/$ip/3306" 2>/dev/null; then
+                                    echo "✅ MySQL端口可达 ($ip)"
+                                    GATEWAY_IP=$ip
+                                    break
+                                fi
+                            fi
+                        done
+                        
+                        if [ -z "$GATEWAY_IP" ]; then
+                            echo "❌ 无法找到可用的宿主机IP，使用默认配置"
+                            GATEWAY_IP="127.0.0.1"
+                        fi
+                        
+                        echo "使用IP: $GATEWAY_IP"
                         
                         # 更新连接字符串使用网关IP
                         export SQL_DSN="testuser:testpass@tcp($GATEWAY_IP:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
@@ -444,9 +483,29 @@ pipeline {
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         
                         echo "测试前网络连接验证..."
-                        # 获取宿主机网关IP
-                        GATEWAY_IP=$(ip route | grep default | awk '{print $3}' | head -1)
-                        echo "使用网关IP: $GATEWAY_IP"
+                        # 尝试多种方式获取宿主机IP
+                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | sed 's/\.[0-9]*$/.1/')}
+                        HOST_IP_FROM_DNS=$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1}' || echo "")
+                        COMMON_GATEWAYS="172.17.0.1 172.18.0.1 10.244.1.1 192.168.1.1"
+                        
+                        # 寻找可用的宿主机IP
+                        for ip in $NODE_IP $HOST_IP_FROM_DNS $COMMON_GATEWAYS; do
+                            if [ -n "$ip" ]; then
+                                echo "测试IP: $ip"
+                                if timeout 3 bash -c "</dev/tcp/$ip/3306" 2>/dev/null; then
+                                    echo "✅ MySQL端口可达 ($ip)"
+                                    GATEWAY_IP=$ip
+                                    break
+                                fi
+                            fi
+                        done
+                        
+                        if [ -z "$GATEWAY_IP" ]; then
+                            echo "❌ 无法找到可用的宿主机IP，使用默认配置"
+                            GATEWAY_IP="127.0.0.1"
+                        fi
+                        
+                        echo "使用IP: $GATEWAY_IP"
                         
                         # 更新连接字符串使用网关IP
                         export SQL_DSN="testuser:testpass@tcp($GATEWAY_IP:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
