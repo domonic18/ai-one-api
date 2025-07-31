@@ -7,7 +7,7 @@ pipeline {
         GIT_REPO = 'https://git.code.tencent.com/domonic/one-api.git'
         GIT_BRANCH = 'feature/model-management-system'
         
-        // Go 环境 - 修复PATH配置
+        // Go 环境
         GO_VERSION = '1.21'
         GOPATH = '/var/lib/jenkins/go'
         GOROOT = '/usr/local/go'
@@ -16,6 +16,12 @@ pipeline {
         // 测试配置
         TEST_TIMEOUT = '10m'
         COVERAGE_THRESHOLD = '70'
+        
+        // 测试服务配置
+        MYSQL_CONTAINER_NAME = "oneapi-mysql-test-${BUILD_NUMBER}"
+        REDIS_CONTAINER_NAME = "oneapi-redis-test-${BUILD_NUMBER}"
+        MYSQL_PORT = "3306"
+        REDIS_PORT = "6379"
     }
     
     stages {
@@ -29,34 +35,19 @@ pipeline {
                     echo "当前PATH: ${env.PATH}"
                     
                     // 检查必要工具
-                    try {
-                        sh 'which go || echo "Go 未安装"'
-                        sh 'go version || echo "Go 版本检查失败"'
-                    } catch (Exception e) {
-                        echo "❌ Go 环境检查失败: ${e.getMessage()}"
-                        echo "请确保 Jenkins 服务器已安装 Go 1.21+"
-                        error "Go 环境未正确配置"
-                    }
+                    sh '''
+                        echo "检查Go环境..."
+                        go version || echo "Go未安装"
+                        
+                        echo "检查Docker环境..."
+                        docker --version || echo "Docker未安装"
+                        
+                        echo "检查其他工具..."
+                        which make || echo "Make未安装"
+                        which git || echo "Git未安装"
+                    '''
                     
-                    try {
-                        sh 'which make || echo "Make 未安装"'
-                        sh 'make --version || echo "Make 版本检查失败"'
-                    } catch (Exception e) {
-                        echo "❌ Make 环境检查失败: ${e.getMessage()}"
-                        echo "请确保 Jenkins 服务器已安装 Make"
-                        error "Make 环境未正确配置"
-                    }
-                    
-                    try {
-                        sh 'which git || echo "Git 未安装"'
-                        sh 'git --version || echo "Git 版本检查失败"'
-                    } catch (Exception e) {
-                        echo "❌ Git 环境检查失败: ${e.getMessage()}"
-                        echo "请确保 Jenkins 服务器已安装 Git"
-                        error "Git 环境未正确配置"
-                    }
-                    
-                    echo "✅ 环境检查通过"
+                    echo "✅ 环境检查完成"
                 }
             }
         }
@@ -65,24 +56,14 @@ pipeline {
             steps {
                 script {
                     echo "=== 代码检出 ==="
-                    
-                    // 清理工作空间
                     cleanWs()
-                    
-                    // 检出代码
                     checkout([
                         $class: 'GitSCM',
                         branches: [[name: "*/${GIT_BRANCH}"]],
                         doGenerateSubmoduleConfigurations: false,
                         extensions: [
                             [$class: 'CleanBeforeCheckout'],
-                            [$class: 'CleanCheckout'],
-                            [$class: 'SubmoduleOption', 
-                             disableSubmodules: false, 
-                             recursiveSubmodules: true, 
-                             trackingSubmodules: false, 
-                             reference: '', 
-                             parentCredentials: false]
+                            [$class: 'CleanCheckout']
                         ],
                         submoduleCfg: [],
                         userRemoteConfigs: [[
@@ -91,7 +72,6 @@ pipeline {
                         ]]
                     ])
                     
-                    // 显示代码信息
                     sh 'git log --oneline -5'
                     sh 'git status'
                 }
@@ -219,20 +199,95 @@ pipeline {
             }
         }
         
+        stage('启动测试服务') {
+            steps {
+                script {
+                    echo "=== 启动测试服务 ==="
+                    
+                    // 清理可能存在的旧容器
+                    sh '''
+                        echo "清理可能存在的旧测试容器..."
+                        docker stop ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || true
+                        docker rm ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || true
+                    '''
+                    
+                    // 启动MySQL服务
+                    sh '''
+                        echo "启动MySQL测试服务..."
+                        docker run -d \
+                            --name ${MYSQL_CONTAINER_NAME} \
+                            -e MYSQL_ROOT_PASSWORD=rootpassword \
+                            -e MYSQL_DATABASE=oneapi_test \
+                            -e MYSQL_USER=testuser \
+                            -e MYSQL_PASSWORD=testpass \
+                            -p ${MYSQL_PORT}:3306 \
+                            mysql:8.0
+                        
+                        echo "等待MySQL服务启动..."
+                        for i in {1..30}; do
+                            if docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
+                                echo "✅ MySQL服务启动成功"
+                                break
+                            fi
+                            echo "等待MySQL启动... ($i/30)"
+                            sleep 2
+                        done
+                    '''
+                    
+                    // 启动Redis服务
+                    sh '''
+                        echo "启动Redis测试服务..."
+                        docker run -d \
+                            --name ${REDIS_CONTAINER_NAME} \
+                            -p ${REDIS_PORT}:6379 \
+                            redis:7-alpine
+                        
+                        echo "等待Redis服务启动..."
+                        for i in {1..15}; do
+                            if docker exec ${REDIS_CONTAINER_NAME} redis-cli ping >/dev/null 2>&1; then
+                                echo "✅ Redis服务启动成功"
+                                break
+                            fi
+                            echo "等待Redis启动... ($i/15)"
+                            sleep 1
+                        done
+                    '''
+                    
+                    // 显示服务状态
+                    sh '''
+                        echo "测试服务状态:"
+                        docker ps --filter "name=${MYSQL_CONTAINER_NAME}|${REDIS_CONTAINER_NAME}"
+                    '''
+                    
+                    // 加载测试环境变量
+                    sh '''
+                        echo "加载测试环境变量..."
+                        if [ -f tests/test.env ]; then
+                            echo "使用测试环境配置文件"
+                            export $(cat tests/test.env | xargs)
+                        else
+                            echo "使用默认测试环境变量"
+                            export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                            export REDIS_CONN_STRING="redis://localhost:6379"
+                            export DEBUG="true"
+                            export GLOBAL_WEB_RATE_LIMIT="0"
+                            export GLOBAL_API_RATE_LIMIT="0"
+                            export SESSION_SECRET="test-secret-key"
+                        fi
+                        
+                        echo "测试环境变量:"
+                        echo "SQL_DSN: $SQL_DSN"
+                        echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
+                        echo "DEBUG: $DEBUG"
+                    '''
+                }
+            }
+        }
+        
         stage('单元测试') {
             steps {
                 script {
                     echo "=== 单元测试 ==="
-                    
-                    // 启动测试环境
-                    sh '''
-                        echo "启动测试环境..."
-                        docker-compose -f docker-compose.test.yml up -d
-                        echo "等待服务启动..."
-                        sleep 15
-                        echo "检查服务状态..."
-                        docker-compose -f docker-compose.test.yml ps
-                    '''
                     
                     // 运行单元测试
                     sh '''
@@ -275,16 +330,6 @@ pipeline {
                 script {
                     echo "=== 集成测试 ==="
                     
-                    // 启动测试环境
-                    sh '''
-                        echo "启动集成测试环境..."
-                        docker-compose -f docker-compose.test.yml up -d
-                        echo "等待服务启动..."
-                        sleep 15
-                        echo "检查服务状态..."
-                        docker-compose -f docker-compose.test.yml ps
-                    '''
-                    
                     // 运行集成测试
                     sh '''
                         echo "运行集成测试..."
@@ -293,15 +338,6 @@ pipeline {
                             echo "⚠️ 集成测试发现问题，但继续执行"
                             echo "测试结果将在后续分析"
                         }
-                    '''
-                }
-            }
-            post {
-                always {
-                    // 清理测试环境
-                    sh '''
-                        echo "清理测试环境..."
-                        docker-compose -f docker-compose.test.yml down -v || echo "环境清理失败"
                     '''
                 }
             }
@@ -319,15 +355,29 @@ pipeline {
                         echo "### 单元测试" >> test-report.md
                         echo "- 执行时间: $(date)" >> test-report.md
                         echo "- 测试文件: tests/unit/" >> test-report.md
+                        echo "- 状态: 已执行" >> test-report.md
                         echo "" >> test-report.md
                         echo "### 集成测试" >> test-report.md
                         echo "- 执行时间: $(date)" >> test-report.md
                         echo "- 测试文件: tests/integration/" >> test-report.md
+                        echo "- 状态: 已执行" >> test-report.md
+                        echo "" >> test-report.md
+                        echo "### 测试服务" >> test-report.md
+                        echo "- MySQL容器: ${MYSQL_CONTAINER_NAME}" >> test-report.md
+                        echo "- Redis容器: ${REDIS_CONTAINER_NAME}" >> test-report.md
+                        echo "- MySQL端口: ${MYSQL_PORT}" >> test-report.md
+                        echo "- Redis端口: ${REDIS_PORT}" >> test-report.md
                         echo "" >> test-report.md
                         echo "### 代码质量检查" >> test-report.md
                         echo "- 静态分析: golangci-lint" >> test-report.md
                         echo "- 安全检查: go vet" >> test-report.md
                         echo "- 格式化检查: go fmt" >> test-report.md
+                        echo "" >> test-report.md
+                        echo "### 环境信息" >> test-report.md
+                        echo "- Go版本: $(go version)" >> test-report.md
+                        echo "- Docker版本: $(docker --version)" >> test-report.md
+                        echo "- 构建时间: $(date)" >> test-report.md
+                        echo "- 工作空间: ${WORKSPACE}" >> test-report.md
                     '''
                 }
             }
@@ -341,6 +391,21 @@ pipeline {
     }
     
     post {
+        always {
+            script {
+                echo "=== 清理测试服务 ==="
+                
+                // 清理测试容器
+                sh '''
+                    echo "清理测试容器..."
+                    docker stop ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || echo "容器已停止"
+                    docker rm ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || echo "容器已删除"
+                    
+                    echo "清理完成"
+                '''
+            }
+        }
+        
         always {
             script {
                 echo "=== 构建完成 ==="
