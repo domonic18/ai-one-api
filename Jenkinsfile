@@ -321,7 +321,7 @@ pipeline {
                             --name ${REDIS_CONTAINER_NAME} \
                             --network oneapi-test-network \
                             -p 6379:6379 \
-                            redis:7-alpine
+                            redis:7-alpine redis-server --protected-mode no --requirepass ""
                         
                         echo "等待Redis服务启动..."
                         for i in $(seq 1 15); do
@@ -473,8 +473,27 @@ pipeline {
                         // 生成测试覆盖率报告
                         sh '''
                         echo "生成测试覆盖率报告..."
-                        # 使用与测试相同的环境变量
-                        SQL_DSN="$SQL_DSN" REDIS_CONN_STRING="$REDIS_CONN_STRING" DEBUG="true" go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo "覆盖率报告生成失败"
+                        # 重新获取网络配置并设置环境变量
+                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | cut -d. -f1-3).1}
+                        HOST_IP_FROM_DNS=$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1}' || echo "")
+                        COMMON_GATEWAYS="172.17.0.1 172.18.0.1 10.244.1.1 192.168.1.1"
+                        
+                        # 寻找可用的宿主机IP
+                        for ip in $NODE_IP $HOST_IP_FROM_DNS $COMMON_GATEWAYS; do
+                            if [ -n "$ip" ]; then
+                                if timeout 3 bash -c "</dev/tcp/$ip/3306" 2>/dev/null; then
+                                    GATEWAY_IP=$ip
+                                    break
+                                fi
+                            fi
+                        done
+                        
+                        if [ -z "$GATEWAY_IP" ]; then
+                            GATEWAY_IP="127.0.0.1"
+                        fi
+                        
+                        echo "覆盖率报告使用IP: $GATEWAY_IP"
+                        SQL_DSN="testuser:testpass@tcp($GATEWAY_IP:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local" REDIS_CONN_STRING="redis://$GATEWAY_IP:6379" DEBUG="true" go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo "覆盖率报告生成失败"
                         go tool cover -html=coverage.out -o coverage.html || echo "HTML覆盖率报告生成失败"
                     '''
                 }
