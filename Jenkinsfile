@@ -331,11 +331,20 @@ pipeline {
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         echo "DEBUG: $DEBUG"
                         
+                        echo "获取网络配置..."
+                        # 获取宿主机IP（Kubernetes节点IP）
+                        HOST_IP=$(hostname -I | awk '{print $1}')
+                        echo "Jenkins Pod IP: $HOST_IP"
+                        
+                        # 获取默认网关（通常是宿主机）
+                        GATEWAY_IP=$(ip route | grep default | awk '{print $3}' | head -1)
+                        echo "默认网关IP: $GATEWAY_IP"
+                        
                         echo "测试网络连接..."
                         echo "MySQL连接测试:"
-                        timeout 5 bash -c '</dev/tcp/127.0.0.1/3306' && echo "✅ MySQL端口可达" || echo "❌ MySQL端口不可达"
+                        timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/3306" && echo "✅ MySQL端口可达 ($GATEWAY_IP)" || echo "❌ MySQL端口不可达 ($GATEWAY_IP)"
                         echo "Redis连接测试:"
-                        timeout 5 bash -c '</dev/tcp/127.0.0.1/6379' && echo "✅ Redis端口可达" || echo "❌ Redis端口不可达"
+                        timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/6379" && echo "✅ Redis端口可达 ($GATEWAY_IP)" || echo "❌ Redis端口不可达 ($GATEWAY_IP)"
                     '''
                 }
             }
@@ -362,8 +371,20 @@ pipeline {
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         
                         echo "测试前网络连接验证..."
-                        timeout 5 bash -c '</dev/tcp/127.0.0.1/3306' && echo "✅ MySQL连接正常" || echo "❌ MySQL连接失败"
-                        timeout 5 bash -c '</dev/tcp/127.0.0.1/6379' && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
+                        # 获取宿主机网关IP
+                        GATEWAY_IP=$(ip route | grep default | awk '{print $3}' | head -1)
+                        echo "使用网关IP: $GATEWAY_IP"
+                        
+                        # 更新连接字符串使用网关IP
+                        export SQL_DSN="testuser:testpass@tcp($GATEWAY_IP:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://$GATEWAY_IP:6379"
+                        
+                        echo "更新后的连接配置:"
+                        echo "SQL_DSN: $SQL_DSN"
+                        echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
+                        
+                        timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/3306" && echo "✅ MySQL连接正常" || echo "❌ MySQL连接失败"
+                        timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/6379" && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
                         
                         cd tests/unit
                         go test -v -timeout=5m ./... || {
@@ -423,8 +444,20 @@ pipeline {
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         
                         echo "测试前网络连接验证..."
-                        timeout 5 bash -c '</dev/tcp/127.0.0.1/3306' && echo "✅ MySQL连接正常" || echo "❌ MySQL连接失败"
-                        timeout 5 bash -c '</dev/tcp/127.0.0.1/6379' && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
+                        # 获取宿主机网关IP
+                        GATEWAY_IP=$(ip route | grep default | awk '{print $3}' | head -1)
+                        echo "使用网关IP: $GATEWAY_IP"
+                        
+                        # 更新连接字符串使用网关IP
+                        export SQL_DSN="testuser:testpass@tcp($GATEWAY_IP:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://$GATEWAY_IP:6379"
+                        
+                        echo "更新后的连接配置:"
+                        echo "SQL_DSN: $SQL_DSN"
+                        echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
+                        
+                        timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/3306" && echo "✅ MySQL连接正常" || echo "❌ MySQL连接失败"
+                        timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/6379" && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
                         
                         cd tests/integration
                         go test -v -timeout=${TEST_TIMEOUT} ./... || {
