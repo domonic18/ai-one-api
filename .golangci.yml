@@ -62,8 +62,6 @@ linters-settings:
     line-length: 140
   misspell:
     locale: US
-  lll:
-    line-length: 140
   funlen:
     lines: 100
     statements: 50

@@ -232,6 +232,12 @@ pipeline {
                             echo "等待MySQL启动... ($i/30)"
                             sleep 2
                         done
+                        
+                        # 如果MySQL启动失败，显示容器日志
+                        if ! docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
+                            echo "❌ MySQL启动失败，显示容器日志:"
+                            docker logs ${MYSQL_CONTAINER_NAME}
+                        fi
                     '''
                     
                     // 启动Redis服务
@@ -264,7 +270,13 @@ pipeline {
                         echo "加载测试环境变量..."
                         if [ -f tests/test.env ]; then
                             echo "使用测试环境配置文件"
-                            export $(cat tests/test.env | xargs)
+                            # 只加载非注释行
+                            while IFS= read -r line; do
+                                # 跳过空行和注释行
+                                if [[ ! -z "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+                                    export "$line"
+                                fi
+                            done < tests/test.env
                         else
                             echo "使用默认测试环境变量"
                             export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
