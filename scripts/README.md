@@ -13,7 +13,7 @@ scripts/
 ├── .env                  # 配置文件（用户创建）
 └── cmd/                  # 独立功能脚本
     ├── redis_helper.go   # Redis助手工具
-    ├── smart_model_test.go  # 智能模型测试
+
     ├── token_checker.go  # 令牌状态检查
     └── config_loader.go  # 配置加载工具
 ```
@@ -34,7 +34,7 @@ go run main.go help
 # 使用Makefile快捷方式
 make help           # 显示帮助
 make redis          # Redis助手
-make smart-model    # 智能模型测试
+
 make token          # 令牌检查
 make config         # 显示配置
 ```
@@ -50,7 +50,6 @@ go run main.go <脚本名称> [参数...]
 
 # 示例
 go run main.go redis -action list
-go run main.go smart-model -action help
 go run main.go token -token sk-xxxxxx
 go run main.go all                    # 运行所有脚本帮助
 go run main.go config                # 显示当前配置
@@ -81,30 +80,7 @@ go run main.go redis -action batch
 go run main.go redis -action list
 ```
 
-### 2. 智能模型测试工具 (`smart-model`)
-**文件位置：** `cmd/smart_model_test.go`
 
-**功能特性：**
-- ✅ 设置用户模型配置
-- ✅ 测试智能模型选择功能
-- ✅ 测试兜底机制
-- ✅ 清理用户配置
-- ✅ 运行完整测试套件
-
-**使用示例：**
-```bash
-# 基本帮助
-go run main.go smart-model -action help
-
-# 设置测试配置
-go run main.go smart-model -action setup -user teacher_001 -model gpt-4-turbo
-
-# 测试智能选择
-go run main.go smart-model -action test -token sk-xxxxxx -user teacher_001
-
-# 运行完整测试
-go run main.go smart-model -action all -token sk-xxxxxx
-```
 
 ### 3. 令牌状态检查工具 (`token`)
 **文件位置：** `cmd/token_checker.go`
