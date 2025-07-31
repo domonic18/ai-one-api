@@ -226,7 +226,8 @@ pipeline {
                             -e MYSQL_USER=testuser \
                             -e MYSQL_PASSWORD=testpass \
                             -e MYSQL_ROOT_HOST=% \
-                            mysql:8.0 --default-authentication-plugin=mysql_native_password
+                            -e MYSQL_ROOT_PASSWORD_HOST=% \
+                            mysql:8.0 --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
                         
                         echo "等待MySQL服务启动..."
                         for i in $(seq 1 60); do
@@ -266,14 +267,50 @@ pipeline {
                             exit 1
                         fi
                         
-                        echo "验证数据库配置..."
-                        docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SHOW DATABASES;" || echo "⚠️ 数据库验证失败"
-                        docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SELECT User, Host FROM mysql.user WHERE User IN ('root', 'testuser');" || echo "⚠️ 用户验证失败"
+                        echo "等待MySQL完全初始化..."
+                        sleep 5
                         
-                        # 如果testuser不存在，手动创建
+                        echo "验证数据库配置..."
+                        # 重试机制验证数据库
+                        for retry in $(seq 1 5); do
+                            echo "验证尝试 ${retry}/5..."
+                            if docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SHOW DATABASES;" >/dev/null 2>&1; then
+                                echo "✅ 数据库验证成功"
+                                break
+                            else
+                                echo "⚠️ 数据库验证失败，等待重试..."
+                                sleep 3
+                            fi
+                        done
+                        
+                        # 验证用户配置
+                        if docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SELECT User, Host FROM mysql.user WHERE User IN ('root', 'testuser');" >/dev/null 2>&1; then
+                            echo "✅ 用户验证成功"
+                        else
+                            echo "⚠️ 用户验证失败"
+                        fi
+                        
+                        # 确保testuser存在并具有正确权限
+                        echo "检查并创建测试用户..."
                         if ! docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SELECT User FROM mysql.user WHERE User='testuser';" 2>/dev/null | grep -q testuser; then
                             echo "创建测试用户..."
-                            docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpass'; GRANT ALL PRIVILEGES ON oneapi_test.* TO 'testuser'@'%'; FLUSH PRIVILEGES;" 2>/dev/null || echo "⚠️ 创建测试用户失败"
+                            docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpass';" 2>/dev/null || echo "⚠️ 创建用户失败"
+                            docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "GRANT ALL PRIVILEGES ON oneapi_test.* TO 'testuser'@'%';" 2>/dev/null || echo "⚠️ 授权失败"
+                            docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "GRANT ALL PRIVILEGES ON *.* TO 'testuser'@'%' WITH GRANT OPTION;" 2>/dev/null || echo "⚠️ 全局授权失败"
+                            docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "FLUSH PRIVILEGES;" 2>/dev/null || echo "⚠️ 刷新权限失败"
+                            echo "✅ 测试用户创建完成"
+                        else
+                            echo "✅ 测试用户已存在，更新权限..."
+                            docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "GRANT ALL PRIVILEGES ON oneapi_test.* TO 'testuser'@'%';" 2>/dev/null || echo "⚠️ 更新授权失败"
+                            docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "FLUSH PRIVILEGES;" 2>/dev/null || echo "⚠️ 刷新权限失败"
+                        fi
+                        
+                        # 验证testuser连接
+                        echo "验证测试用户连接..."
+                        if docker exec ${MYSQL_CONTAINER_NAME} mysql -u testuser -ptestpass -e "SELECT 1;" >/dev/null 2>&1; then
+                            echo "✅ 测试用户连接验证成功"
+                        else
+                            echo "❌ 测试用户连接验证失败"
                         fi
                     '''
                     
