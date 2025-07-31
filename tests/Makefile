@@ -57,13 +57,29 @@ integration-test: check-env ## 运行集成测试
 # 覆盖率相关
 coverage: ## 生成覆盖率报告
 	@echo "$(GREEN)生成覆盖率报告...$(NC)"
-	go test -v -race -coverprofile=$(COVERAGE_FILE) ./tests/...
-	go tool cover -html=$(COVERAGE_FILE) -o $(COVERAGE_HTML)
+	@echo "$(YELLOW)执行单元测试覆盖率...$(NC)"
+	go test -v -race -coverprofile=coverage.unit.out -coverpkg=./relay/...,./controller/...,./middleware/...,./model/...,./common/... ./tests/unit/...
+	@echo "$(YELLOW)执行集成测试覆盖率...$(NC)"
+	go test -v -race -coverprofile=coverage.integration.out -coverpkg=./relay/...,./controller/...,./middleware/...,./model/...,./common/... ./tests/integration/...
+	@echo "$(YELLOW)合并覆盖率文件...$(NC)"
+	@echo "mode: atomic" > $(COVERAGE_FILE)
+	@tail -n +2 coverage.unit.out >> $(COVERAGE_FILE) 2>/dev/null || true
+	@tail -n +2 coverage.integration.out >> $(COVERAGE_FILE) 2>/dev/null || true
+	@go tool cover -html=$(COVERAGE_FILE) -o $(COVERAGE_HTML)
 	@echo "$(GREEN)覆盖率报告已生成: $(COVERAGE_HTML)$(NC)"
+	@echo "$(YELLOW)覆盖率摘要:$(NC)"
+	@go tool cover -func=$(COVERAGE_FILE) | tail -1 || echo "$(RED)无法显示覆盖率摘要$(NC)"
 
 coverage-summary: ## 显示覆盖率摘要
 	@echo "$(GREEN)覆盖率摘要:$(NC)"
-	go test -cover ./tests/... | grep -v "coverage: 0.0%"
+	@if [ -f $(COVERAGE_FILE) ]; then \
+		echo "$(YELLOW)业务代码覆盖率:$(NC)"; \
+		go tool cover -func=$(COVERAGE_FILE) | grep -E "(relay|controller|middleware|model|common)" | head -10; \
+		echo "$(YELLOW)总体覆盖率:$(NC)"; \
+		go tool cover -func=$(COVERAGE_FILE) | tail -1; \
+	else \
+		echo "$(RED)覆盖率文件不存在，请先运行 make coverage$(NC)"; \
+	fi
 
 # 性能测试
 benchmark: check-env ## 运行性能基准测试

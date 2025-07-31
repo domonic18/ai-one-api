@@ -295,8 +295,33 @@ pipeline {
                                 echo '生成测试覆盖率报告...'
                                 echo 'Go代理配置: \$GOPROXY'
                                 timeout 300 go mod download || echo '模块下载超时，但继续执行'
-                                go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo '覆盖率报告生成失败'
-                                go tool cover -html=coverage.out -o coverage.html || echo 'HTML覆盖率报告生成失败'
+                                
+                                # 执行单元测试覆盖率（使用-coverpkg指定业务代码包）
+                                echo '执行单元测试覆盖率...'
+                                go test -coverprofile=coverage.unit.out -covermode=atomic -coverpkg=./relay/...,./controller/...,./middleware/...,./model/...,./common/... ./tests/unit/... || echo '单元测试覆盖率生成失败'
+                                
+                                # 执行集成测试覆盖率（使用-coverpkg指定业务代码包）
+                                echo '执行集成测试覆盖率...'
+                                go test -coverprofile=coverage.integration.out -covermode=atomic -coverpkg=./relay/...,./controller/...,./middleware/...,./model/...,./common/... ./tests/integration/... || echo '集成测试覆盖率生成失败'
+                                
+                                # 合并覆盖率文件
+                                echo '合并覆盖率文件...'
+                                echo 'mode: atomic' > coverage.out
+                                tail -n +2 coverage.unit.out >> coverage.out 2>/dev/null || true
+                                tail -n +2 coverage.integration.out >> coverage.out 2>/dev/null || true
+                                
+                                # 生成HTML覆盖率报告
+                                if [ -f coverage.out ]; then
+                                    echo '生成HTML覆盖率报告...'
+                                    go tool cover -html=coverage.out -o coverage.html || echo 'HTML覆盖率报告生成失败'
+                                    
+                                    # 显示覆盖率摘要
+                                    echo '覆盖率摘要:'
+                                    go tool cover -func=coverage.out | tail -1 || echo '无法显示覆盖率摘要'
+                                else
+                                    echo '警告: 未生成覆盖率文件'
+                                fi
+                                
                                 echo '覆盖率报告生成完成'
                             " || echo "覆盖率报告生成失败"
                     '''
@@ -346,6 +371,14 @@ pipeline {
                         echo "- Docker版本: $(docker --version)" >> test-report.md
                         echo "- 构建时间: $(date)" >> test-report.md
                         echo "- 工作空间: ${WORKSPACE}" >> test-report.md
+                        echo "" >> test-report.md
+                        echo "### 覆盖率信息" >> test-report.md
+                        if [ -f coverage.out ]; then
+                            echo "- 覆盖率文件: 已生成" >> test-report.md
+                            echo "- 覆盖率摘要: $(go tool cover -func=coverage.out | tail -1 | awk '{print \$NF}')" >> test-report.md
+                        else
+                            echo "- 覆盖率文件: 未生成" >> test-report.md
+                        fi
                     '''
                 }
             }
