@@ -463,7 +463,8 @@ pipeline {
                         timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/6379" && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
                         
                         cd tests/unit
-                        go test -v -timeout=5m ./... || {
+                        # 确保环境变量在测试进程中可用
+                        SQL_DSN="$SQL_DSN" REDIS_CONN_STRING="$REDIS_CONN_STRING" DEBUG="true" go test -v -timeout=5m ./... || {
                             echo "⚠️ 单元测试发现问题，但继续执行"
                             echo "测试结果将在后续分析"
                         }
@@ -472,11 +473,8 @@ pipeline {
                         // 生成测试覆盖率报告
                         sh '''
                         echo "生成测试覆盖率报告..."
-                        export SQL_DSN="testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
-                        export REDIS_CONN_STRING="redis://127.0.0.1:6379"
-                        export DEBUG="true"
-                        
-                        go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo "覆盖率报告生成失败"
+                        # 使用与测试相同的环境变量
+                        SQL_DSN="$SQL_DSN" REDIS_CONN_STRING="$REDIS_CONN_STRING" DEBUG="true" go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo "覆盖率报告生成失败"
                         go tool cover -html=coverage.out -o coverage.html || echo "HTML覆盖率报告生成失败"
                     '''
                 }
@@ -556,7 +554,8 @@ pipeline {
                         timeout 5 bash -c "</dev/tcp/$GATEWAY_IP/6379" && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
                         
                         cd tests/integration
-                        go test -v -timeout=${TEST_TIMEOUT} ./... || {
+                        # 确保环境变量在测试进程中可用
+                        SQL_DSN="$SQL_DSN" REDIS_CONN_STRING="$REDIS_CONN_STRING" DEBUG="true" GLOBAL_WEB_RATE_LIMIT="0" GLOBAL_API_RATE_LIMIT="0" SESSION_SECRET="test-secret-key" go test -v -timeout=${TEST_TIMEOUT} ./... || {
                             echo "⚠️ 集成测试发现问题，但继续执行"
                             echo "测试结果将在后续分析"
                         }

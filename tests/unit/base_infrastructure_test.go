@@ -14,9 +14,14 @@ import (
 
 func setupSimpleTestDB() *gorm.DB {
 	// 设置测试环境变量
-	if os.Getenv("SQL_DSN") == "" {
-		os.Setenv("SQL_DSN", "testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local")
+	sqlDSN := os.Getenv("SQL_DSN")
+	if sqlDSN == "" {
+		// 如果没有设置环境变量，使用默认配置
+		sqlDSN = "testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
 	}
+
+	// 确保环境变量被正确设置
+	os.Setenv("SQL_DSN", sqlDSN)
 
 	// 连接MySQL数据库
 	db, err := gorm.Open(mysql.Open(os.Getenv("SQL_DSN")), &gorm.Config{
