@@ -214,30 +214,90 @@ pipeline {
                     // 启动MySQL服务
                     sh '''
                         echo "启动MySQL测试服务..."
+                        
+                        # 方案1：使用标准配置
+                        echo "尝试方案1：标准MySQL配置..."
                         docker run -d \
                             --name ${MYSQL_CONTAINER_NAME} \
                             -e MYSQL_ROOT_PASSWORD=rootpassword \
                             -e MYSQL_DATABASE=oneapi_test \
                             -e MYSQL_USER=testuser \
                             -e MYSQL_PASSWORD=testpass \
+                            -e MYSQL_ROOT_HOST=% \
                             -p ${MYSQL_PORT}:3306 \
                             mysql:8.0
                         
                         echo "等待MySQL服务启动..."
-                        for i in {1..30}; do
-                            if docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
-                                echo "✅ MySQL服务启动成功"
+                        mysql_started=false
+                        for i in {1..60}; do
+                            echo "尝试连接MySQL (第$i次)..."
+                            
+                            # 检查容器状态
+                            if ! docker ps | grep -q ${MYSQL_CONTAINER_NAME}; then
+                                echo "❌ MySQL容器未运行，尝试方案2..."
+                                docker stop ${MYSQL_CONTAINER_NAME} 2>/dev/null || true
+                                docker rm ${MYSQL_CONTAINER_NAME} 2>/dev/null || true
                                 break
                             fi
-                            echo "等待MySQL启动... ($i/30)"
-                            sleep 2
+                            
+                            # 尝试连接MySQL
+                            if docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
+                                echo "✅ MySQL服务启动成功"
+                                mysql_started=true
+                                break
+                            fi
+                            
+                            echo "等待MySQL启动... ($i/60)"
+                            sleep 3
                         done
                         
-                        # 如果MySQL启动失败，显示容器日志
-                        if ! docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
-                            echo "❌ MySQL启动失败，显示容器日志:"
-                            docker logs ${MYSQL_CONTAINER_NAME}
+                        # 如果方案1失败，尝试方案2
+                        if [ "$mysql_started" = false ]; then
+                            echo "方案1失败，尝试方案2：简化MySQL配置..."
+                            docker stop ${MYSQL_CONTAINER_NAME} 2>/dev/null || true
+                            docker rm ${MYSQL_CONTAINER_NAME} 2>/dev/null || true
+                            
+                            docker run -d \
+                                --name ${MYSQL_CONTAINER_NAME} \
+                                -e MYSQL_ROOT_PASSWORD=rootpassword \
+                                -e MYSQL_DATABASE=oneapi_test \
+                                -p ${MYSQL_PORT}:3306 \
+                                mysql:8.0
+                            
+                            echo "等待MySQL服务启动（方案2）..."
+                            for i in {1..60}; do
+                                echo "尝试连接MySQL (第$i次)..."
+                                
+                                if docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
+                                    echo "✅ MySQL服务启动成功（方案2）"
+                                    mysql_started=true
+                                    break
+                                fi
+                                
+                                echo "等待MySQL启动... ($i/60)"
+                                sleep 3
+                            done
                         fi
+                        
+                        # 如果所有方案都失败
+                        if [ "$mysql_started" = false ]; then
+                            echo "❌ 所有MySQL启动方案都失败，显示容器日志:"
+                            docker logs ${MYSQL_CONTAINER_NAME}
+                            echo "❌ MySQL服务启动失败"
+                            exit 1
+                        fi
+                        
+                        # 验证数据库配置
+                        echo "验证数据库配置..."
+                        docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SHOW DATABASES;" 2>/dev/null || {
+                            echo "⚠️ 无法验证数据库，但继续执行"
+                        }
+                        
+                        # 验证测试用户（如果使用方案1）
+                        echo "验证测试用户..."
+                        docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SELECT User, Host FROM mysql.user WHERE User='testuser';" 2>/dev/null || {
+                            echo "⚠️ 无法验证测试用户，但继续执行"
+                        }
                     '''
                     
                     // 启动Redis服务
@@ -270,12 +330,13 @@ pipeline {
                         echo "加载测试环境变量..."
                         if [ -f tests/test.env ]; then
                             echo "使用测试环境配置文件"
-                            # 只加载非注释行
+                            # 只加载非注释行，使用sh兼容语法
                             while IFS= read -r line; do
                                 # 跳过空行和注释行
-                                if [[ ! -z "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
-                                    export "$line"
-                                fi
+                                case "$line" in
+                                    ""|"#"*) continue ;;
+                                    *) export "$line" ;;
+                                esac
                             done < tests/test.env
                         else
                             echo "使用默认测试环境变量"
@@ -304,8 +365,20 @@ pipeline {
                     // 运行单元测试
                     sh '''
                         echo "运行单元测试..."
+                        echo "设置测试环境变量..."
+                        export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://localhost:6379"
+                        export DEBUG="true"
+                        export GLOBAL_WEB_RATE_LIMIT="0"
+                        export GLOBAL_API_RATE_LIMIT="0"
+                        export SESSION_SECRET="test-secret-key"
+                        
+                        echo "环境变量:"
+                        echo "SQL_DSN: $SQL_DSN"
+                        echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
+                        
                         cd tests/unit
-                        make unit-test || {
+                        go test -v -timeout=5m ./... || {
                             echo "⚠️ 单元测试发现问题，但继续执行"
                             echo "测试结果将在后续分析"
                         }
@@ -314,6 +387,10 @@ pipeline {
                     // 生成测试覆盖率报告
                     sh '''
                         echo "生成测试覆盖率报告..."
+                        export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://localhost:6379"
+                        export DEBUG="true"
+                        
                         go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo "覆盖率报告生成失败"
                         go tool cover -html=coverage.out -o coverage.html || echo "HTML覆盖率报告生成失败"
                     '''
@@ -345,6 +422,18 @@ pipeline {
                     // 运行集成测试
                     sh '''
                         echo "运行集成测试..."
+                        echo "设置测试环境变量..."
+                        export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://localhost:6379"
+                        export DEBUG="true"
+                        export GLOBAL_WEB_RATE_LIMIT="0"
+                        export GLOBAL_API_RATE_LIMIT="0"
+                        export SESSION_SECRET="test-secret-key"
+                        
+                        echo "环境变量:"
+                        echo "SQL_DSN: $SQL_DSN"
+                        echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
+                        
                         cd tests/integration
                         go test -v -timeout=${TEST_TIMEOUT} ./... || {
                             echo "⚠️ 集成测试发现问题，但继续执行"

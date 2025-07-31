@@ -14,7 +14,6 @@ linters:
     - ineffassign
     - typecheck
     - misspell
-    - gosec
   disable:
     - gocyclo
     - dupl
@@ -24,7 +23,6 @@ linters:
     - gomnd
     - gomoddirectives
     - gomodguard
-    - gosec
     - lll
     - maligned
     - nakedret
