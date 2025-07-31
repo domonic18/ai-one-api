@@ -137,8 +137,8 @@ pipeline {
                         # 验证依赖
                         go mod verify || echo "依赖验证失败，但继续执行"
                     '''
-                    
-                    // 安装测试工具
+                        
+                        // 安装测试工具
                     sh '''
                         # 安装代码质量检查工具
                         echo "安装 golangci-lint..."
@@ -158,7 +158,7 @@ pipeline {
                 script {
                     echo "=== 代码质量检查 ==="
                     
-                    // 代码格式化检查
+                        // 代码格式化检查
                     sh '''
                         echo "执行代码格式化检查..."
                         go fmt ./... || echo "代码格式化检查完成"
@@ -216,12 +216,12 @@ pipeline {
                         echo "启动MySQL测试服务..."
                         docker run -d \
                             --name ${MYSQL_CONTAINER_NAME} \
+                            --network host \
                             -e MYSQL_ROOT_PASSWORD=rootpassword \
                             -e MYSQL_DATABASE=oneapi_test \
                             -e MYSQL_USER=testuser \
                             -e MYSQL_PASSWORD=testpass \
                             -e MYSQL_ROOT_HOST=% \
-                            -p ${MYSQL_PORT}:3306 \
                             mysql:8.0 --default-authentication-plugin=mysql_native_password
                         
                         echo "等待MySQL服务启动..."
@@ -278,7 +278,7 @@ pipeline {
                         echo "启动Redis测试服务..."
                         docker run -d \
                             --name ${REDIS_CONTAINER_NAME} \
-                            -p ${REDIS_PORT}:6379 \
+                            --network host \
                             redis:7-alpine
                         
                         echo "等待Redis服务启动..."
@@ -325,6 +325,12 @@ pipeline {
                         echo "SQL_DSN: $SQL_DSN"
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         echo "DEBUG: $DEBUG"
+                        
+                        echo "测试网络连接..."
+                        echo "MySQL连接测试:"
+                        timeout 5 bash -c '</dev/tcp/127.0.0.1/3306' && echo "✅ MySQL端口可达" || echo "❌ MySQL端口不可达"
+                        echo "Redis连接测试:"
+                        timeout 5 bash -c '</dev/tcp/127.0.0.1/6379' && echo "✅ Redis端口可达" || echo "❌ Redis端口不可达"
                     '''
                 }
             }
@@ -335,8 +341,8 @@ pipeline {
                 script {
                     echo "=== 单元测试 ==="
                     
-                    // 运行单元测试
-                    sh '''
+                        // 运行单元测试
+                        sh '''
                         echo "运行单元测试..."
                         echo "设置测试环境变量..."
                         export SQL_DSN="testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
@@ -350,15 +356,19 @@ pipeline {
                         echo "SQL_DSN: $SQL_DSN"
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         
-                        cd tests/unit
+                        echo "测试前网络连接验证..."
+                        timeout 5 bash -c '</dev/tcp/127.0.0.1/3306' && echo "✅ MySQL连接正常" || echo "❌ MySQL连接失败"
+                        timeout 5 bash -c '</dev/tcp/127.0.0.1/6379' && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
+                        
+                            cd tests/unit
                         go test -v -timeout=5m ./... || {
                             echo "⚠️ 单元测试发现问题，但继续执行"
                             echo "测试结果将在后续分析"
                         }
-                    '''
-                    
-                    // 生成测试覆盖率报告
-                    sh '''
+                        '''
+                        
+                        // 生成测试覆盖率报告
+                        sh '''
                         echo "生成测试覆盖率报告..."
                         export SQL_DSN="testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
                         export REDIS_CONN_STRING="redis://127.0.0.1:6379"
@@ -393,7 +403,7 @@ pipeline {
                     echo "=== 集成测试 ==="
                     
                     // 运行集成测试
-                    sh '''
+                        sh '''
                         echo "运行集成测试..."
                         echo "设置测试环境变量..."
                         export SQL_DSN="testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
@@ -407,7 +417,11 @@ pipeline {
                         echo "SQL_DSN: $SQL_DSN"
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         
-                        cd tests/integration
+                        echo "测试前网络连接验证..."
+                        timeout 5 bash -c '</dev/tcp/127.0.0.1/3306' && echo "✅ MySQL连接正常" || echo "❌ MySQL连接失败"
+                        timeout 5 bash -c '</dev/tcp/127.0.0.1/6379' && echo "✅ Redis连接正常" || echo "❌ Redis连接失败"
+                        
+                            cd tests/integration
                         go test -v -timeout=${TEST_TIMEOUT} ./... || {
                             echo "⚠️ 集成测试发现问题，但继续执行"
                             echo "测试结果将在后续分析"
