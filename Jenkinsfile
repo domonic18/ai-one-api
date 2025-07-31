@@ -338,7 +338,7 @@ pipeline {
                         
                         # 尝试多种方式获取宿主机IP
                         # 方法1: 通过环境变量获取节点IP
-                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | sed 's/\.[0-9]*$/.1/')}
+                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | cut -d. -f1-3).1}
                         
                         # 方法2: 通过DNS解析获取宿主机
                         HOST_IP_FROM_DNS=$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1}' || echo "")
@@ -391,7 +391,7 @@ pipeline {
                         
                         echo "测试前网络连接验证..."
                         # 尝试多种方式获取宿主机IP
-                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | sed 's/\.[0-9]*$/.1/')}
+                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | cut -d. -f1-3).1}
                         HOST_IP_FROM_DNS=$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1}' || echo "")
                         COMMON_GATEWAYS="172.17.0.1 172.18.0.1 10.244.1.1 192.168.1.1"
                         
@@ -484,7 +484,7 @@ pipeline {
                         
                         echo "测试前网络连接验证..."
                         # 尝试多种方式获取宿主机IP
-                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | sed 's/\.[0-9]*$/.1/')}
+                        NODE_IP=${NODE_IP:-$(hostname -I | awk '{print $1}' | cut -d. -f1-3).1}
                         HOST_IP_FROM_DNS=$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1}' || echo "")
                         COMMON_GATEWAYS="172.17.0.1 172.18.0.1 10.244.1.1 192.168.1.1"
                         
