@@ -98,7 +98,7 @@ func TestSmartModelSelection_Integration(t *testing.T) {
 			expectedModelReplaced: true,
 			expectedModel:         "gpt-4",
 			expectedStatusCode:    200,
-			description:           "大小写混合的true应该启用智能模型选择",
+			description:           "大小写混合的'true'应该启用智能模型选择",
 		},
 		{
 			name:                "带空格_true_启用",
@@ -113,7 +113,22 @@ func TestSmartModelSelection_Integration(t *testing.T) {
 			expectedModelReplaced: true,
 			expectedModel:         "gpt-4",
 			expectedStatusCode:    200,
-			description:           "带空格的true应该启用智能模型选择",
+			description:           "带空格的'true'应该启用智能模型选择",
+		},
+		{
+			name:                "未知用户_不替换",
+			userID:              "unknown_user",
+			smartModelSelection: "true",
+			requestBody: map[string]interface{}{
+				"model": "gpt-3.5-turbo",
+				"messages": []map[string]interface{}{
+					{"role": "user", "content": "Hello"},
+				},
+			},
+			expectedModelReplaced: false,
+			expectedModel:         "gpt-3.5-turbo",
+			expectedStatusCode:    200,
+			description:           "未知用户不应该替换模型",
 		},
 		{
 			name:                "无效用户ID_不替换",
@@ -128,22 +143,7 @@ func TestSmartModelSelection_Integration(t *testing.T) {
 			expectedModelReplaced: false,
 			expectedModel:         "gpt-3.5-turbo",
 			expectedStatusCode:    200,
-			description:           "无效用户ID时不应该替换模型",
-		},
-		{
-			name:                "不存在的用户_不替换",
-			userID:              "nonexistent_user",
-			smartModelSelection: "true",
-			requestBody: map[string]interface{}{
-				"model": "gpt-3.5-turbo",
-				"messages": []map[string]interface{}{
-					{"role": "user", "content": "Hello"},
-				},
-			},
-			expectedModelReplaced: false,
-			expectedModel:         "gpt-3.5-turbo",
-			expectedStatusCode:    200,
-			description:           "不存在的用户时不应该替换模型",
+			description:           "无效用户ID不应该替换模型",
 		},
 	}
 
@@ -161,13 +161,13 @@ func TestSmartModelSelection_Integration(t *testing.T) {
 					// 如果没有从中间件获取到模型，从请求体中获取
 					var reqBody map[string]interface{}
 					if err := c.ShouldBindJSON(&reqBody); err == nil {
-						if model, ok := reqBody["model"].(string); ok {
-							actualModel = model
+						if m, ok := reqBody["model"].(string); ok {
+							actualModel = m
 						}
 					}
 				}
 
-				c.JSON(tt.expectedStatusCode, gin.H{
+				c.JSON(200, gin.H{
 					"model": actualModel,
 					"usage": gin.H{
 						"prompt_tokens":     10,

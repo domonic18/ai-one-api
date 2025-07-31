@@ -140,33 +140,56 @@ func TestSmartModelSelection_MiddlewareIntegration(t *testing.T) {
 			description:           "当未设置智能模型选择时，不应该替换模型",
 		},
 		{
-			name:                  "无效用户ID_不替换",
-			userID:                "",
+			name:                  "大小写混合_true_启用",
+			userID:                "teacher_001",
+			smartModelSelection:   "TrUe",
+			originalModel:         "gpt-3.5-turbo",
+			expectedModelReplaced: true,
+			expectedModel:         "gpt-4",
+			description:           "大小写混合的'true'应该启用智能模型选择",
+		},
+		{
+			name:                  "带空格_true_启用",
+			userID:                "teacher_001",
+			smartModelSelection:   " true ",
+			originalModel:         "gpt-3.5-turbo",
+			expectedModelReplaced: true,
+			expectedModel:         "gpt-4",
+			description:           "带空格的'true'应该启用智能模型选择",
+		},
+		{
+			name:                  "未知用户_不替换",
+			userID:                "unknown_user",
 			smartModelSelection:   "true",
 			originalModel:         "gpt-3.5-turbo",
 			expectedModelReplaced: false,
 			expectedModel:         "gpt-3.5-turbo",
-			description:           "当用户ID无效时，不应该替换模型",
+			description:           "未知用户不应该替换模型",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 创建测试请求
+			// 创建测试路由
 			router := gin.New()
 			router.Use(identity.Identity())
 
-			// 模拟请求处理
+			// 模拟API端点
 			var actualModel string
-			router.POST("/test", func(c *gin.Context) {
+			router.POST("/v1/chat/completions", func(c *gin.Context) {
 				actualModel = c.GetString(ctxkey.RequestModel)
 				c.JSON(200, gin.H{"model": actualModel})
 			})
 
 			// 创建请求
-			req := createTestRequest(t, "POST", "/test", map[string]interface{}{
+			requestBody := map[string]interface{}{
 				"model": tt.originalModel,
-			})
+				"messages": []map[string]interface{}{
+					{"role": "user", "content": "Hello"},
+				},
+			}
+
+			req := createTestRequest(t, "POST", "/v1/chat/completions", requestBody)
 
 			// 设置请求头
 			if tt.userID != "" {
