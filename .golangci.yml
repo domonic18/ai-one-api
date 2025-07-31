@@ -1,0 +1,112 @@
+run:
+  timeout: 5m
+  go: "1.20"
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - gofmt
+    - govet
+    - errcheck
+    - staticcheck
+    - gosimple
+    - unused
+    - ineffassign
+    - typecheck
+    - misspell
+    - gosec
+  disable:
+    - gocyclo
+    - dupl
+    - gocognit
+    - gocritic
+    - godot
+    - gomnd
+    - gomoddirectives
+    - gomodguard
+    - gosec
+    - lll
+    - maligned
+    - nakedret
+    - noctx
+    - paralleltest
+    - prealloc
+    - rowserrcheck
+    - scopelint
+    - sqlclosecheck
+    - structcheck
+    - stylecheck
+    - tagliatelle
+    - tparallel
+    - unparam
+    - varcheck
+    - whitespace
+    - wrapcheck
+    - wsl
+
+linters-settings:
+  errcheck:
+    check-type-assertions: false
+    check-blank: false
+  govet:
+    check-shadowing: false
+  gocyclo:
+    min-complexity: 30
+  dupl:
+    threshold: 100
+  gocognit:
+    min-complexity: 30
+  maligned:
+    suggest-new: true
+  lll:
+    line-length: 140
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+  funlen:
+    lines: 100
+    statements: 50
+
+issues:
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+        - gosec
+        - staticcheck
+    - path: tests/
+      linters:
+        - errcheck
+        - gosec
+        - staticcheck
+        - unused
+    - linters:
+        - errcheck
+      text: "Error return value of.*is not checked"
+    - linters:
+        - unused
+      text: ".*is unused"
+    - linters:
+        - gosimple
+      text: "should use.*instead"
+    - linters:
+        - staticcheck
+      text: "SA1019.*rand.Seed.*deprecated"
+    - linters:
+        - staticcheck
+      text: "SA1012.*do not pass a nil Context"
+    - linters:
+        - staticcheck
+      text: "SA1029.*should not use built-in type string as key"
+    - linters:
+        - staticcheck
+      text: "SA4006.*this value of.*is never used"
+    - linters:
+        - staticcheck
+      text: "SA4017.*HasPrefix.*return value is ignored"
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+severity:
+  default-severity: error 
