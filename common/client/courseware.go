@@ -58,6 +58,7 @@ var coursewareClient *CoursewareClient
 // InitCoursewareClient 初始化课件平台API客户端
 func InitCoursewareClient() {
 	if coursewareClient != nil {
+		logger.SysLog("课件平台API客户端已初始化，跳过重复初始化")
 		return
 	}
 
@@ -65,6 +66,16 @@ func InitCoursewareClient() {
 	baseURL := config.CoursewarePlatformBaseURL
 	apiKey := config.CoursewarePlatformAPIKey
 	timeout := time.Duration(config.CoursewarePlatformTimeout) * time.Second
+
+	// 验证配置
+	if baseURL == "" {
+		logger.SysError("课件平台API基础URL未配置")
+		return
+	}
+	if apiKey == "" {
+		logger.SysError("课件平台API密钥未配置")
+		return
+	}
 
 	// 创建HTTP客户端
 	httpClient := &http.Client{
@@ -77,7 +88,7 @@ func InitCoursewareClient() {
 		httpClient: httpClient,
 	}
 
-	logger.SysLog("课件平台API客户端初始化完成")
+	logger.SysLogf("课件平台API客户端初始化完成: baseURL=%s, timeout=%v", baseURL, timeout)
 }
 
 // GetCoursewareClient 获取课件平台API客户端实例
@@ -106,10 +117,12 @@ func (c *CoursewareClient) GetTeacherInfo(ctx context.Context, teacherId string)
 
 	// 构建请求URL
 	url := fmt.Sprintf("%s/teacher/%s/info", c.baseURL, teacherId)
+	logger.Debugf(ctx, "调用课件平台API获取老师信息: teacherId=%s, url=%s", teacherId, url)
 
 	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
+		logger.Errorf(ctx, "创建API请求失败: teacherId=%s, error=%v", teacherId, err)
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
@@ -120,6 +133,7 @@ func (c *CoursewareClient) GetTeacherInfo(ctx context.Context, teacherId string)
 	// 发送请求
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		logger.Errorf(ctx, "发送API请求失败: teacherId=%s, error=%v", teacherId, err)
 		return nil, fmt.Errorf("发送请求失败: %w", err)
 	}
 	defer resp.Body.Close()
@@ -127,15 +141,19 @@ func (c *CoursewareClient) GetTeacherInfo(ctx context.Context, teacherId string)
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		logger.Errorf(ctx, "API请求失败: teacherId=%s, statusCode=%d, response=%s", teacherId, resp.StatusCode, string(body))
 		return nil, fmt.Errorf("API请求失败: 状态码=%d, 响应=%s", resp.StatusCode, string(body))
 	}
 
 	// 解析响应
 	var teacherInfo TeacherInfo
 	if err := json.NewDecoder(resp.Body).Decode(&teacherInfo); err != nil {
+		logger.Errorf(ctx, "解析API响应失败: teacherId=%s, error=%v", teacherId, err)
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
+	logger.Debugf(ctx, "API返回老师信息: teacherId=%s, group=%s, preferredModel=%s",
+		teacherId, teacherInfo.GroupName, teacherInfo.PreferredModel)
 	return &teacherInfo, nil
 }
 
@@ -292,10 +310,12 @@ func (c *CoursewareClient) GetAllTeacherIds(ctx context.Context) ([]string, erro
 
 	// 构建请求URL
 	url := fmt.Sprintf("%s/teachers/ids", c.baseURL)
+	logger.Debugf(ctx, "调用课件平台API获取所有老师ID列表: url=%s", url)
 
 	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
+		logger.Errorf(ctx, "创建API请求失败: error=%v", err)
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
@@ -306,6 +326,7 @@ func (c *CoursewareClient) GetAllTeacherIds(ctx context.Context) ([]string, erro
 	// 发送请求
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		logger.Errorf(ctx, "发送API请求失败: error=%v", err)
 		return nil, fmt.Errorf("发送请求失败: %w", err)
 	}
 	defer resp.Body.Close()
@@ -313,6 +334,7 @@ func (c *CoursewareClient) GetAllTeacherIds(ctx context.Context) ([]string, erro
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		logger.Errorf(ctx, "API请求失败: statusCode=%d, response=%s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("API请求失败: 状态码=%d, 响应=%s", resp.StatusCode, string(body))
 	}
 
@@ -327,19 +349,23 @@ func (c *CoursewareClient) GetAllTeacherIds(ctx context.Context) ([]string, erro
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		logger.Errorf(ctx, "解析API响应失败: error=%v", err)
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
 	if response.Code != 200 {
+		logger.Errorf(ctx, "API返回错误: code=%d, message=%s", response.Code, response.Message)
 		return nil, fmt.Errorf("API返回错误: %s", response.Message)
 	}
 
+	logger.Debugf(ctx, "API返回老师ID列表: count=%d, total=%d", len(response.Data.TeacherIds), response.Data.Total)
 	return response.Data.TeacherIds, nil
 }
 
 // BatchGetUserInfo 批量获取用户信息（预加载用）
 func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []string) ([]*TeacherInfo, error) {
 	if len(teacherIds) == 0 {
+		logger.Debugf(ctx, "批量获取用户信息: 空列表，跳过")
 		return []*TeacherInfo{}, nil
 	}
 
@@ -349,6 +375,7 @@ func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []st
 
 	// 构建请求URL
 	url := fmt.Sprintf("%s/teachers/batch", c.baseURL)
+	logger.Debugf(ctx, "调用课件平台API批量获取用户信息: url=%s, count=%d", url, len(teacherIds))
 
 	// 构建请求体
 	requestBody := map[string]interface{}{
@@ -358,12 +385,14 @@ func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []st
 	// 序列化请求体
 	jsonData, err := json.Marshal(requestBody)
 	if err != nil {
+		logger.Errorf(ctx, "序列化请求体失败: error=%v", err)
 		return nil, fmt.Errorf("序列化请求体失败: %w", err)
 	}
 
 	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonData)))
 	if err != nil {
+		logger.Errorf(ctx, "创建API请求失败: error=%v", err)
 		return nil, fmt.Errorf("创建请求失败: %w", err)
 	}
 
@@ -374,6 +403,7 @@ func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []st
 	// 发送请求
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		logger.Errorf(ctx, "发送API请求失败: error=%v", err)
 		return nil, fmt.Errorf("发送请求失败: %w", err)
 	}
 	defer resp.Body.Close()
@@ -381,6 +411,7 @@ func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []st
 	// 检查响应状态码
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		logger.Errorf(ctx, "API请求失败: statusCode=%d, response=%s", resp.StatusCode, string(body))
 		return nil, fmt.Errorf("API请求失败: 状态码=%d, 响应=%s", resp.StatusCode, string(body))
 	}
 
@@ -396,12 +427,16 @@ func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []st
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		logger.Errorf(ctx, "解析API响应失败: error=%v", err)
 		return nil, fmt.Errorf("解析响应失败: %w", err)
 	}
 
 	if response.Code != 200 {
+		logger.Errorf(ctx, "API返回错误: code=%d, message=%s", response.Code, response.Message)
 		return nil, fmt.Errorf("API返回错误: %s", response.Message)
 	}
 
+	logger.Debugf(ctx, "API返回批量用户信息: count=%d, successCount=%d, errorCount=%d",
+		len(response.Data.Users), response.Data.SuccessCount, response.Data.ErrorCount)
 	return response.Data.Users, nil
 }
