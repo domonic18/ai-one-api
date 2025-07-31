@@ -214,9 +214,6 @@ pipeline {
                     // 启动MySQL服务
                     sh '''
                         echo "启动MySQL测试服务..."
-                        
-                        # 方案1：使用标准配置
-                        echo "尝试方案1：标准MySQL配置..."
                         docker run -d \
                             --name ${MYSQL_CONTAINER_NAME} \
                             -e MYSQL_ROOT_PASSWORD=rootpassword \
@@ -225,79 +222,49 @@ pipeline {
                             -e MYSQL_PASSWORD=testpass \
                             -e MYSQL_ROOT_HOST=% \
                             -p ${MYSQL_PORT}:3306 \
-                            mysql:8.0
+                            mysql:8.0 --default-authentication-plugin=mysql_native_password
                         
                         echo "等待MySQL服务启动..."
-                        mysql_started=false
-                        for i in {1..60}; do
-                            echo "尝试连接MySQL (第$i次)..."
+                        for i in $(seq 1 60); do
+                            echo "尝试连接MySQL (第${i}次)..."
                             
                             # 检查容器状态
                             if ! docker ps | grep -q ${MYSQL_CONTAINER_NAME}; then
-                                echo "❌ MySQL容器未运行，尝试方案2..."
-                                docker stop ${MYSQL_CONTAINER_NAME} 2>/dev/null || true
-                                docker rm ${MYSQL_CONTAINER_NAME} 2>/dev/null || true
-                                break
+                                echo "❌ MySQL容器未运行"
+                                docker logs ${MYSQL_CONTAINER_NAME}
+                                exit 1
                             fi
                             
-                            # 尝试连接MySQL
+                            # 先尝试使用设置的密码连接
                             if docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
                                 echo "✅ MySQL服务启动成功"
-                                mysql_started=true
                                 break
                             fi
                             
-                            echo "等待MySQL启动... ($i/60)"
+                            # 如果密码连接失败，尝试空密码连接并设置密码
+                            if docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root >/dev/null 2>&1; then
+                                echo "检测到空密码，正在设置密码..."
+                                docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -e "ALTER USER 'root'@'localhost' IDENTIFIED BY 'rootpassword'; FLUSH PRIVILEGES;" >/dev/null 2>&1 || true
+                                docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -e "ALTER USER 'root'@'%' IDENTIFIED BY 'rootpassword'; FLUSH PRIVILEGES;" >/dev/null 2>&1 || true
+                                echo "✅ MySQL服务启动成功，密码已设置"
+                                break
+                            fi
+                            
+                            echo "等待MySQL启动... (${i}/60)"
                             sleep 3
                         done
                         
-                        # 如果方案1失败，尝试方案2
-                        if [ "$mysql_started" = false ]; then
-                            echo "方案1失败，尝试方案2：简化MySQL配置..."
-                            docker stop ${MYSQL_CONTAINER_NAME} 2>/dev/null || true
-                            docker rm ${MYSQL_CONTAINER_NAME} 2>/dev/null || true
-                            
-                            docker run -d \
-                                --name ${MYSQL_CONTAINER_NAME} \
-                                -e MYSQL_ROOT_PASSWORD=rootpassword \
-                                -e MYSQL_DATABASE=oneapi_test \
-                                -p ${MYSQL_PORT}:3306 \
-                                mysql:8.0
-                            
-                            echo "等待MySQL服务启动（方案2）..."
-                            for i in {1..60}; do
-                                echo "尝试连接MySQL (第$i次)..."
-                                
-                                if docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
-                                    echo "✅ MySQL服务启动成功（方案2）"
-                                    mysql_started=true
-                                    break
-                                fi
-                                
-                                echo "等待MySQL启动... ($i/60)"
-                                sleep 3
-                            done
-                        fi
-                        
-                        # 如果所有方案都失败
-                        if [ "$mysql_started" = false ]; then
-                            echo "❌ 所有MySQL启动方案都失败，显示容器日志:"
+                        # 最终检查
+                        if ! docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u root -prootpassword >/dev/null 2>&1; then
+                            echo "❌ MySQL启动失败，显示容器日志:"
                             docker logs ${MYSQL_CONTAINER_NAME}
                             echo "❌ MySQL服务启动失败"
                             exit 1
                         fi
                         
-                        # 验证数据库配置
                         echo "验证数据库配置..."
-                        docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SHOW DATABASES;" 2>/dev/null || {
-                            echo "⚠️ 无法验证数据库，但继续执行"
-                        }
-                        
-                        # 验证测试用户（如果使用方案1）
-                        echo "验证测试用户..."
-                        docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SELECT User, Host FROM mysql.user WHERE User='testuser';" 2>/dev/null || {
-                            echo "⚠️ 无法验证测试用户，但继续执行"
-                        }
+                        docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SHOW DATABASES;" || echo "⚠️ 数据库验证失败"
+                        docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SELECT User, Host FROM mysql.user WHERE User IN ('root', 'testuser');" || echo "⚠️ 用户验证失败"
                     '''
                     
                     // 启动Redis服务
