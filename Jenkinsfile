@@ -403,11 +403,7 @@ pipeline {
                     
                     echo "清理完成"
                 '''
-            }
-        }
-        
-        always {
-            script {
+                
                 echo "=== 构建完成 ==="
                 echo "构建状态: ${currentBuild.result}"
                 echo "构建编号: ${BUILD_NUMBER}"
