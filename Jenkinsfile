@@ -2,10 +2,20 @@ pipeline {
     agent any
     
     environment {
+        // 独立测试环境配置 - 完全隔离，不影响宿主机现有服务
         MYSQL_CONTAINER_NAME = "oneapi-mysql-test-${BUILD_NUMBER}"
         REDIS_CONTAINER_NAME = "oneapi-redis-test-${BUILD_NUMBER}"
-        MYSQL_PORT = "3307"  // 避免与现有MySQL冲突
-        REDIS_PORT = "6380"  // 避免与现有Redis冲突
+        GO_CONTAINER_NAME = "oneapi-go-test-${BUILD_NUMBER}"
+        TEST_NETWORK_NAME = "oneapi-test-network-${BUILD_NUMBER}"
+        
+        // 使用不同端口避免冲突（宿主机已用3406, 6479）
+        MYSQL_PORT = "3307"  
+        REDIS_PORT = "6380"
+        
+        // 测试数据库配置
+        MYSQL_USER = "testuser"
+        MYSQL_PASSWORD = "testpass"
+        MYSQL_DATABASE = "oneapi_test"
         TEST_TIMEOUT = "10m"
     }
     
@@ -36,11 +46,19 @@ pipeline {
                 script {
                     echo "=== 启动测试服务 ==="
                     
-                    // 清理可能存在的旧容器
+                    // 清理可能存在的旧容器和网络
                     sh '''
-                        echo "清理可能存在的旧测试容器..."
-                        docker stop ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || true
-                        docker rm ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || true
+                        echo "清理可能存在的旧测试资源..."
+                        docker stop ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} ${GO_CONTAINER_NAME} 2>/dev/null || true
+                        docker rm ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} ${GO_CONTAINER_NAME} 2>/dev/null || true
+                        docker network rm ${TEST_NETWORK_NAME} 2>/dev/null || true
+                    '''
+                    
+                    // 创建独立的测试网络
+                    sh '''
+                        echo "创建独立测试网络..."
+                        docker network create ${TEST_NETWORK_NAME}
+                        echo "✅ 测试网络创建完成: ${TEST_NETWORK_NAME}"
                     '''
                     
                     // 启动MySQL服务
@@ -48,11 +66,12 @@ pipeline {
                         echo "启动MySQL测试服务..."
                         docker run -d \
                             --name ${MYSQL_CONTAINER_NAME} \
+                            --network ${TEST_NETWORK_NAME} \
                             -p ${MYSQL_PORT}:3306 \
                             -e MYSQL_ROOT_PASSWORD=rootpassword \
-                            -e MYSQL_DATABASE=oneapi_test \
-                            -e MYSQL_USER=testuser \
-                            -e MYSQL_PASSWORD=testpass \
+                            -e MYSQL_DATABASE=${MYSQL_DATABASE} \
+                            -e MYSQL_USER=${MYSQL_USER} \
+                            -e MYSQL_PASSWORD=${MYSQL_PASSWORD} \
                             mysql:8.0 --default-authentication-plugin=mysql_native_password
                         
                         echo "等待MySQL服务启动..."
@@ -78,6 +97,7 @@ pipeline {
                         echo "启动Redis测试服务..."
                         docker run -d \
                             --name ${REDIS_CONTAINER_NAME} \
+                            --network ${TEST_NETWORK_NAME} \
                             -p ${REDIS_PORT}:6379 \
                             redis:7-alpine redis-server --protected-mode no
                         
@@ -120,13 +140,14 @@ pipeline {
                         echo "运行单元测试..."
                         echo "设置测试环境变量..."
                         
-                        # 使用映射的端口
-                        export SQL_DSN="testuser:testpass@tcp(localhost:${MYSQL_PORT})/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
-                        export REDIS_CONN_STRING="redis://localhost:${REDIS_PORT}"
+                        # 设置测试环境变量（Go容器通过Docker网络连接到测试服务容器）
+                        export SQL_DSN="testuser:testpass@tcp(${MYSQL_CONTAINER_NAME}:3306)/${MYSQL_DATABASE}?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://${REDIS_CONTAINER_NAME}:6379"
                         export DEBUG="true"
                         export GLOBAL_WEB_RATE_LIMIT="0"
                         export GLOBAL_API_RATE_LIMIT="0"
                         export SESSION_SECRET="test-secret-key"
+                        export SYNC_FREQUENCY="60"
                         
                         echo "环境变量:"
                         echo "SQL_DSN: $SQL_DSN"
@@ -134,11 +155,52 @@ pipeline {
                         
                         # 测试网络连接
                         echo "测试网络连接..."
-                        timeout 5 bash -c "</dev/tcp/localhost/${MYSQL_PORT}" && echo "✅ MySQL端口可达" || echo "❌ MySQL端口不可达"
-                        timeout 5 bash -c "</dev/tcp/localhost/${REDIS_PORT}" && echo "✅ Redis端口可达" || echo "❌ Redis端口不可达"
+                        # 检查容器是否正在运行
+                        if docker ps | grep -q ${MYSQL_CONTAINER_NAME}; then
+                            echo "✅ MySQL容器运行正常"
+                            # 直接测试容器内部连接
+                            if docker exec ${MYSQL_CONTAINER_NAME} mysqladmin ping -h localhost -u testuser -ptestpass >/dev/null 2>&1; then
+                                echo "✅ MySQL容器内部连接正常"
+                            else
+                                echo "⚠️ MySQL容器内部连接失败"
+                            fi
+                        else
+                            echo "❌ MySQL容器未运行"
+                        fi
                         
-                        cd tests/unit
-                        go test -v -timeout=5m ./... || {
+                        if docker ps | grep -q ${REDIS_CONTAINER_NAME}; then
+                            echo "✅ Redis容器运行正常"
+                            # 直接测试容器内部连接
+                            if docker exec ${REDIS_CONTAINER_NAME} redis-cli ping >/dev/null 2>&1; then
+                                echo "✅ Redis容器内部连接正常"
+                            else
+                                echo "⚠️ Redis容器内部连接失败"
+                            fi
+                        else
+                            echo "❌ Redis容器未运行"
+                        fi
+                        
+                        # 在Jenkins环境中，使用专用Go容器运行测试
+                        echo "启动Go测试容器..."
+                        docker run --rm \
+                            --name ${GO_CONTAINER_NAME}-unit \
+                            --network ${TEST_NETWORK_NAME} \
+                            -v ${WORKSPACE}:/workspace \
+                            -w /workspace \
+                            -e SQL_DSN="$SQL_DSN" \
+                            -e REDIS_CONN_STRING="$REDIS_CONN_STRING" \
+                            -e DEBUG="$DEBUG" \
+                            -e GLOBAL_WEB_RATE_LIMIT="$GLOBAL_WEB_RATE_LIMIT" \
+                            -e GLOBAL_API_RATE_LIMIT="$GLOBAL_API_RATE_LIMIT" \
+                            -e SESSION_SECRET="$SESSION_SECRET" \
+                            -e SYNC_FREQUENCY="$SYNC_FREQUENCY" \
+                            golang:1.21 sh -c "
+                                echo '开始执行单元测试...'
+                                cd tests/unit
+                                go mod download
+                                go test -v -timeout=${TEST_TIMEOUT} ./...
+                                echo '单元测试执行完成'
+                            " || {
                             echo "⚠️ 单元测试发现问题，但继续执行"
                         }
                     '''
@@ -155,20 +217,40 @@ pipeline {
                         echo "运行集成测试..."
                         echo "设置测试环境变量..."
                         
-                        # 使用映射的端口
-                        export SQL_DSN="testuser:testpass@tcp(localhost:${MYSQL_PORT})/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
-                        export REDIS_CONN_STRING="redis://localhost:${REDIS_PORT}"
+                        # 设置测试环境变量（Go容器通过Docker网络连接到测试服务容器）
+                        export SQL_DSN="testuser:testpass@tcp(${MYSQL_CONTAINER_NAME}:3306)/${MYSQL_DATABASE}?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://${REDIS_CONTAINER_NAME}:6379"
                         export DEBUG="true"
                         export GLOBAL_WEB_RATE_LIMIT="0"
                         export GLOBAL_API_RATE_LIMIT="0"
                         export SESSION_SECRET="test-secret-key"
+                        export SYNC_FREQUENCY="60"
                         
                         echo "环境变量:"
                         echo "SQL_DSN: $SQL_DSN"
                         echo "REDIS_CONN_STRING: $REDIS_CONN_STRING"
                         
-                        cd tests/integration
-                        go test -v -timeout=10m ./... || {
+                        # 在Jenkins环境中，使用专用Go容器运行集成测试
+                        echo "启动Go集成测试容器..."
+                        docker run --rm \
+                            --name ${GO_CONTAINER_NAME}-integration \
+                            --network ${TEST_NETWORK_NAME} \
+                            -v ${WORKSPACE}:/workspace \
+                            -w /workspace \
+                            -e SQL_DSN="$SQL_DSN" \
+                            -e REDIS_CONN_STRING="$REDIS_CONN_STRING" \
+                            -e DEBUG="$DEBUG" \
+                            -e GLOBAL_WEB_RATE_LIMIT="$GLOBAL_WEB_RATE_LIMIT" \
+                            -e GLOBAL_API_RATE_LIMIT="$GLOBAL_API_RATE_LIMIT" \
+                            -e SESSION_SECRET="$SESSION_SECRET" \
+                            -e SYNC_FREQUENCY="$SYNC_FREQUENCY" \
+                            golang:1.21 sh -c "
+                                echo '开始执行集成测试...'
+                                cd tests/integration
+                                go mod download
+                                go test -v -timeout=${TEST_TIMEOUT} ./...
+                                echo '集成测试执行完成'
+                            " || {
                             echo "⚠️ 集成测试发现问题，但继续执行"
                         }
                     '''
@@ -184,13 +266,26 @@ pipeline {
                     sh '''
                         echo "生成测试覆盖率报告..."
                         
-                        # 使用映射的端口
-                        export SQL_DSN="testuser:testpass@tcp(localhost:${MYSQL_PORT})/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
-                        export REDIS_CONN_STRING="redis://localhost:${REDIS_PORT}"
+                        # 设置测试环境变量（Go容器通过Docker网络连接到测试服务容器）
+                        export SQL_DSN="testuser:testpass@tcp(${MYSQL_CONTAINER_NAME}:3306)/${MYSQL_DATABASE}?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://${REDIS_CONTAINER_NAME}:6379"
                         export DEBUG="true"
                         
-                        go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo "覆盖率报告生成失败"
-                        go tool cover -html=coverage.out -o coverage.html || echo "HTML覆盖率报告生成失败"
+                        # 使用Go容器生成覆盖率报告
+                        docker run --rm \
+                            --name ${GO_CONTAINER_NAME}-coverage \
+                            --network ${TEST_NETWORK_NAME} \
+                            -v ${WORKSPACE}:/workspace \
+                            -w /workspace \
+                            -e SQL_DSN="$SQL_DSN" \
+                            -e REDIS_CONN_STRING="$REDIS_CONN_STRING" \
+                            -e DEBUG="$DEBUG" \
+                            golang:1.21 sh -c "
+                                echo '生成测试覆盖率报告...'
+                                go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo '覆盖率报告生成失败'
+                                go tool cover -html=coverage.out -o coverage.html || echo 'HTML覆盖率报告生成失败'
+                                echo '覆盖率报告生成完成'
+                            " || echo "覆盖率报告生成失败"
                     '''
                 }
             }
@@ -255,10 +350,23 @@ pipeline {
                 echo "=== 清理测试服务 ==="
                 
                 sh '''
-                    echo "清理测试容器..."
-                    docker stop ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || echo "容器已停止"
-                    docker rm ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || echo "容器已删除"
-                    echo "清理完成"
+                    echo "清理测试资源..."
+                    
+                    # 清理测试容器
+                    echo "停止并删除测试容器..."
+                    docker stop ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || echo "测试容器已停止"
+                    docker rm ${MYSQL_CONTAINER_NAME} ${REDIS_CONTAINER_NAME} 2>/dev/null || echo "测试容器已删除"
+                    
+                    # 清理可能的Go测试容器
+                    docker rm -f ${GO_CONTAINER_NAME}-unit 2>/dev/null || true
+                    docker rm -f ${GO_CONTAINER_NAME}-integration 2>/dev/null || true
+                    docker rm -f ${GO_CONTAINER_NAME}-coverage 2>/dev/null || true
+                    
+                    # 清理测试网络
+                    echo "清理测试网络..."
+                    docker network rm ${TEST_NETWORK_NAME} 2>/dev/null || echo "测试网络已清理或不存在"
+                    
+                    echo "✅ 测试资源清理完成"
                 '''
                 
                 echo "=== 构建完成 ==="

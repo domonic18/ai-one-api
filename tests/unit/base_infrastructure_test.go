@@ -16,8 +16,8 @@ func setupSimpleTestDB() *gorm.DB {
 	// 设置测试环境变量
 	sqlDSN := os.Getenv("SQL_DSN")
 	if sqlDSN == "" {
-		// 如果没有设置环境变量，使用默认配置
-		sqlDSN = "testuser:testpass@tcp(localhost:3307)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+		// 如果没有设置环境变量，使用默认配置（本地开发环境使用3306）
+		sqlDSN = "testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
 	}
 
 	// 确保环境变量被正确设置
