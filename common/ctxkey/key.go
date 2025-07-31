@@ -31,7 +31,6 @@ const (
 	TeacherName = "teacher_name" // 老师姓名
 
 	// 智能模型选择相关上下文键
-	SmartModelSelection = "smart_model_selection" // 是否启用智能模型选择
-	OriginalModel       = "original_model"        // 原始请求中的模型名称
-	SelectedModel       = "selected_model"        // 智能选择的模型名称
+	OriginalModel = "original_model" // 原始请求中的模型名称
+	SelectedModel = "selected_model" // 智能选择的模型名称
 )

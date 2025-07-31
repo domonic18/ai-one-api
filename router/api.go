@@ -121,13 +121,5 @@ func SetApiRouter(router *gin.Engine) {
 			groupRoute.GET("/", controller.GetGroups)
 		}
 
-		// 添加智能模型选择管理路由
-		smartModelRoute := apiRouter.Group("/smart-model")
-		smartModelRoute.Use(middleware.AdminAuth())
-		{
-			smartModelRoute.GET("/:id", controller.GetUserSmartModelConfig)
-			smartModelRoute.POST("/", controller.SetUserSmartModelConfig)
-			smartModelRoute.DELETE("/:id", controller.DeleteUserSmartModelConfig)
-		}
 	}
 }

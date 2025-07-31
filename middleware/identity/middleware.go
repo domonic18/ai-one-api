@@ -30,21 +30,49 @@ func Identity() gin.HandlerFunc {
 				c.Set(ctxkey.Group, userGroup)
 
 				// 新增：如果启用智能模型选择，解析用户偏好模型
-				if smartModelSelection == "true" {
+				if isSmartModelSelectionEnabled(smartModelSelection) {
 					originalModel := c.GetString(ctxkey.RequestModel)
 					if originalModel == "" {
 						// 尝试从请求体中获取模型
 						originalModel = getModelFromRequest(c)
 					}
 
-					preferredModel := resolver.ResolveModel(ctx, externalUserId, originalModel)
-					if preferredModel != originalModel {
-						c.Set(ctxkey.RequestModel, preferredModel)
-						logger.Debugf(ctx, "模型替换: %s -> %s", originalModel, preferredModel)
+					if originalModel != "" {
+						// 先设置原始模型到上下文
+						c.Set(ctxkey.RequestModel, originalModel)
+
+						preferredModel := resolver.ResolveModel(ctx, externalUserId, originalModel)
+						if preferredModel != originalModel {
+							c.Set(ctxkey.RequestModel, preferredModel)
+							logger.Infof(ctx, "智能模型选择: 用户=%s, 原始模型=%s, 替换模型=%s", externalUserId, originalModel, preferredModel)
+						} else {
+							logger.Debugf(ctx, "智能模型选择: 用户=%s, 模型=%s (无需替换)", externalUserId, originalModel)
+						}
+					} else {
+						logger.Warnf(ctx, "智能模型选择: 用户=%s, 无法获取原始模型", externalUserId)
 					}
+				} else {
+					// 当智能模型选择被禁用时，也要设置原始模型到上下文
+					originalModel := c.GetString(ctxkey.RequestModel)
+					if originalModel == "" {
+						originalModel = getModelFromRequest(c)
+					}
+					if originalModel != "" {
+						c.Set(ctxkey.RequestModel, originalModel)
+					}
+					logger.Debugf(ctx, "智能模型选择: 用户=%s, 未启用 (header=%s)", externalUserId, smartModelSelection)
 				}
 
 				logger.Debugf(ctx, "身份解析: externalUserId=%s, group=%s", externalUserId, userGroup)
+			}
+		} else {
+			// 如果没有X-User-ID或课件平台集成未启用，尝试设置原始模型到上下文
+			originalModel := c.GetString(ctxkey.RequestModel)
+			if originalModel == "" {
+				originalModel = getModelFromRequest(c)
+			}
+			if originalModel != "" {
+				c.Set(ctxkey.RequestModel, originalModel)
 			}
 		}
 
@@ -60,6 +88,15 @@ func isCoursewareEnabled() bool {
 	// 检查是否使用DefaultIdentityResolver
 	_, isDefault := resolver.(*DefaultIdentityResolver)
 	return !isDefault
+}
+
+// isSmartModelSelectionEnabled 检查是否启用智能模型选择
+// 支持大小写不敏感的处理
+func isSmartModelSelectionEnabled(headerValue string) bool {
+	if headerValue == "" {
+		return false
+	}
+	return strings.ToLower(strings.TrimSpace(headerValue)) == "true"
 }
 
 // getModelFromRequest 从请求中获取模型名称
