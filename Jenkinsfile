@@ -265,6 +265,12 @@ pipeline {
                         echo "验证数据库配置..."
                         docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SHOW DATABASES;" || echo "⚠️ 数据库验证失败"
                         docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SELECT User, Host FROM mysql.user WHERE User IN ('root', 'testuser');" || echo "⚠️ 用户验证失败"
+                        
+                        # 如果testuser不存在，手动创建
+                        if ! docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "SELECT User FROM mysql.user WHERE User='testuser';" 2>/dev/null | grep -q testuser; then
+                            echo "创建测试用户..."
+                            docker exec ${MYSQL_CONTAINER_NAME} mysql -u root -prootpassword -e "CREATE USER 'testuser'@'%' IDENTIFIED BY 'testpass'; GRANT ALL PRIVILEGES ON oneapi_test.* TO 'testuser'@'%'; FLUSH PRIVILEGES;" 2>/dev/null || echo "⚠️ 创建测试用户失败"
+                        fi
                     '''
                     
                     // 启动Redis服务
@@ -276,12 +282,12 @@ pipeline {
                             redis:7-alpine
                         
                         echo "等待Redis服务启动..."
-                        for i in {1..15}; do
+                        for i in $(seq 1 15); do
                             if docker exec ${REDIS_CONTAINER_NAME} redis-cli ping >/dev/null 2>&1; then
                                 echo "✅ Redis服务启动成功"
                                 break
                             fi
-                            echo "等待Redis启动... ($i/15)"
+                            echo "等待Redis启动... (${i}/15)"
                             sleep 1
                         done
                     '''
@@ -307,8 +313,8 @@ pipeline {
                             done < tests/test.env
                         else
                             echo "使用默认测试环境变量"
-                            export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
-                            export REDIS_CONN_STRING="redis://localhost:6379"
+                            export SQL_DSN="testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                            export REDIS_CONN_STRING="redis://127.0.0.1:6379"
                             export DEBUG="true"
                             export GLOBAL_WEB_RATE_LIMIT="0"
                             export GLOBAL_API_RATE_LIMIT="0"
@@ -333,8 +339,8 @@ pipeline {
                     sh '''
                         echo "运行单元测试..."
                         echo "设置测试环境变量..."
-                        export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
-                        export REDIS_CONN_STRING="redis://localhost:6379"
+                        export SQL_DSN="testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://127.0.0.1:6379"
                         export DEBUG="true"
                         export GLOBAL_WEB_RATE_LIMIT="0"
                         export GLOBAL_API_RATE_LIMIT="0"
@@ -354,8 +360,8 @@ pipeline {
                     // 生成测试覆盖率报告
                     sh '''
                         echo "生成测试覆盖率报告..."
-                        export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
-                        export REDIS_CONN_STRING="redis://localhost:6379"
+                        export SQL_DSN="testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://127.0.0.1:6379"
                         export DEBUG="true"
                         
                         go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/... || echo "覆盖率报告生成失败"
@@ -390,8 +396,8 @@ pipeline {
                     sh '''
                         echo "运行集成测试..."
                         echo "设置测试环境变量..."
-                        export SQL_DSN="testuser:testpass@tcp(localhost:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
-                        export REDIS_CONN_STRING="redis://localhost:6379"
+                        export SQL_DSN="testuser:testpass@tcp(127.0.0.1:3306)/oneapi_test?charset=utf8mb4&parseTime=True&loc=Local"
+                        export REDIS_CONN_STRING="redis://127.0.0.1:6379"
                         export DEBUG="true"
                         export GLOBAL_WEB_RATE_LIMIT="0"
                         export GLOBAL_API_RATE_LIMIT="0"
