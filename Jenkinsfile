@@ -7,10 +7,11 @@ pipeline {
         GIT_REPO = 'https://git.code.tencent.com/domonic/one-api.git'
         GIT_BRANCH = 'feature/model-management-system'
         
-        // Go 环境
+        // Go 环境 - 修复PATH配置
         GO_VERSION = '1.21'
         GOPATH = '/var/lib/jenkins/go'
         GOROOT = '/usr/local/go'
+        PATH = "/usr/local/go/bin:/var/lib/jenkins/go/bin:${env.PATH}"
         
         // 测试配置
         TEST_TIMEOUT = '10m'
@@ -25,6 +26,7 @@ pipeline {
                     echo "Jenkins 工作空间: ${WORKSPACE}"
                     echo "构建编号: ${BUILD_NUMBER}"
                     echo "Git 分支: ${GIT_BRANCH}"
+                    echo "当前PATH: ${env.PATH}"
                     
                     // 检查必要工具
                     try {
@@ -100,17 +102,15 @@ pipeline {
             steps {
                 script {
                     echo "=== 依赖安装 ==="
+                    echo "当前PATH: ${env.PATH}"
                     
-                    // 设置 Go 环境
-                    withEnv(["PATH+GO=${GOROOT}/bin:${GOPATH}/bin"]) {
-                        // 下载依赖
-                        sh 'go mod download'
-                        sh 'go mod verify'
-                        
-                        // 安装测试工具
-                        sh 'go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest'
-                        sh 'go install gotest.tools/gotestsum@latest'
-                    }
+                    // 下载依赖
+                    sh 'go mod download'
+                    sh 'go mod verify'
+                    
+                    // 安装测试工具
+                    sh 'go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest'
+                    sh 'go install gotest.tools/gotestsum@latest'
                 }
             }
         }
@@ -120,19 +120,17 @@ pipeline {
                 script {
                     echo "=== 代码质量检查 ==="
                     
-                    withEnv(["PATH+GO=${GOROOT}/bin:${GOPATH}/bin"]) {
-                        // 代码格式化检查
-                        sh 'go fmt ./...'
-                        
-                        // 代码静态分析
-                        sh 'golangci-lint run --timeout=5m --out-format=line-number'
-                        
-                        // 安全检查
-                        sh 'go vet ./...'
-                        
-                        // 检查是否有未使用的导入
-                        sh 'go mod tidy'
-                    }
+                    // 代码格式化检查
+                    sh 'go fmt ./...'
+                    
+                    // 代码静态分析
+                    sh 'golangci-lint run --timeout=5m --out-format=line-number'
+                    
+                    // 安全检查
+                    sh 'go vet ./...'
+                    
+                    // 检查是否有未使用的导入
+                    sh 'go mod tidy'
                 }
             }
         }
@@ -142,19 +140,22 @@ pipeline {
                 script {
                     echo "=== 单元测试 ==="
                     
-                    withEnv(["PATH+GO=${GOROOT}/bin:${GOPATH}/bin"]) {
-                        // 运行单元测试
-                        sh '''
-                            cd tests/unit
-                            make unit-test
-                        '''
-                        
-                        // 生成测试覆盖率报告
-                        sh '''
-                            go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/...
-                            go tool cover -html=coverage.out -o coverage.html
-                        '''
-                    }
+                    // 启动测试环境
+                    sh '''
+                        docker-compose -f docker-compose.test.yml up -d
+                        sleep 10
+                    '''
+                    // 运行单元测试
+                    sh '''
+                        cd tests/unit
+                        make unit-test
+                    '''
+                    
+                    // 生成测试覆盖率报告
+                    sh '''
+                        go test -coverprofile=coverage.out -covermode=atomic ./tests/unit/...
+                        go tool cover -html=coverage.out -o coverage.html
+                    '''
                 }
             }
             post {
@@ -180,19 +181,17 @@ pipeline {
                 script {
                     echo "=== 集成测试 ==="
                     
-                    withEnv(["PATH+GO=${GOROOT}/bin:${GOPATH}/bin"]) {
-                        // 启动测试环境
-                        sh '''
-                            docker-compose -f docker-compose.test.yml up -d
-                            sleep 10
-                        '''
-                        
-                        // 运行集成测试
-                        sh '''
-                            cd tests/integration
-                            go test -v -timeout=${TEST_TIMEOUT} ./...
-                        '''
-                    }
+                    // 启动测试环境
+                    sh '''
+                        docker-compose -f docker-compose.test.yml up -d
+                        sleep 10
+                    '''
+                    
+                    // 运行集成测试
+                    sh '''
+                        cd tests/integration
+                        go test -v -timeout=${TEST_TIMEOUT} ./...
+                    '''
                 }
             }
             post {
