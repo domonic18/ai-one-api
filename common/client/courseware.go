@@ -128,7 +128,7 @@ func (c *CoursewareClient) GetTeacherInfo(ctx context.Context, teacherId string)
 	}
 
 	// 构建请求URL
-	url := fmt.Sprintf("%s/teacher/%s/info", c.baseURL, teacherId)
+	url := fmt.Sprintf("%s/api/v1/teacher/%s/info", c.baseURL, teacherId)
 	logger.Debugf(ctx, "调用课件平台API获取老师信息: teacherId=%s, url=%s", teacherId, url)
 
 	// 创建请求
@@ -217,7 +217,7 @@ func (c *CoursewareClient) GetUserConfig(ctx context.Context, userId string) (*U
 	}
 
 	// 构建请求URL
-	url := fmt.Sprintf("%s/teacher/%s/model", c.baseURL, userId)
+	url := fmt.Sprintf("%s/api/v1/teacher/%s/model", c.baseURL, userId)
 
 	// 创建请求
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -321,7 +321,7 @@ func (c *CoursewareClient) GetAllTeacherIds(ctx context.Context) ([]string, erro
 	}
 
 	// 构建请求URL
-	url := fmt.Sprintf("%s/teachers/ids", c.baseURL)
+	url := fmt.Sprintf("%s/api/v1/teachers/ids", c.baseURL)
 	logger.Debugf(ctx, "调用课件平台API获取所有老师ID列表: url=%s", url)
 
 	// 创建请求
@@ -386,7 +386,7 @@ func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []st
 	}
 
 	// 构建请求URL
-	url := fmt.Sprintf("%s/teachers/batch", c.baseURL)
+	url := fmt.Sprintf("%s/api/v1/teachers/batch", c.baseURL)
 	logger.Debugf(ctx, "调用课件平台API批量获取用户信息: url=%s, count=%d", url, len(teacherIds))
 
 	// 构建请求体
