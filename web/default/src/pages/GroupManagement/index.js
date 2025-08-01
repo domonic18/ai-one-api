@@ -48,10 +48,11 @@ const GroupManagement = () => {
       const response = await API.get('/api/group/detail');
       if (response.data.success) {
         const groupData = response.data.data || [];
-        // 为每个组添加ID字段
+        // 使用用户组名称作为ID
         const groupsWithId = groupData.map((group, index) => ({
           ...group,
-          id: index + 1,
+          id: group.name, // 使用用户组名称作为ID
+          index: index + 1, // 保留索引用于显示
         }));
         setGroups(groupsWithId);
         calculateStats(groupsWithId);
@@ -89,7 +90,14 @@ const GroupManagement = () => {
         showError(response.data.message || '操作失败');
       }
     } catch (error) {
-      showError('操作失败: ' + error.message);
+      // 优先显示后端返回的错误信息
+      if (error.response && error.response.data && error.response.data.message) {
+        showError(error.response.data.message);
+      } else if (error.response && error.response.status) {
+        showError(`操作失败 (${error.response.status}): ${error.response.statusText || '服务器错误'}`);
+      } else {
+        showError('操作失败: ' + error.message);
+      }
     }
   };
 
@@ -105,7 +113,14 @@ const GroupManagement = () => {
         showError(response.data.message || '删除失败');
       }
     } catch (error) {
-      showError('删除失败: ' + error.message);
+      // 优先显示后端返回的错误信息
+      if (error.response && error.response.data && error.response.data.message) {
+        showError(error.response.data.message);
+      } else if (error.response && error.response.status) {
+        showError(`删除失败 (${error.response.status}): ${error.response.statusText || '服务器错误'}`);
+      } else {
+        showError('删除失败: ' + error.message);
+      }
     }
   };
 
