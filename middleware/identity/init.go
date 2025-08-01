@@ -105,8 +105,11 @@ func loadCoursewareConfig() *CoursewareConfig {
 		return nil
 	}
 
-	baseURL := os.Getenv("COURSEWARE_BASE_URL")
-	apiKey := os.Getenv("COURSEWARE_API_KEY")
+	baseURL := os.Getenv("COURSEWARE_PLATFORM_BASE_URL")
+	apiKey := os.Getenv("COURSEWARE_PLATFORM_API_KEY")
+
+	// 添加调试日志
+	logger.SysLogf("调试: 从环境变量读取 baseURL=%s, apiKey=%s", baseURL, apiKey)
 
 	if baseURL == "" || apiKey == "" {
 		logger.SysLog("课件平台配置不完整，禁用集成 (baseURL或apiKey为空)")
@@ -114,10 +117,12 @@ func loadCoursewareConfig() *CoursewareConfig {
 	}
 
 	// 解析超时配置
-	timeoutStr := os.Getenv("COURSEWARE_TIMEOUT")
-	timeout, err := time.ParseDuration(timeoutStr)
-	if err != nil {
-		timeout = 5 * time.Second // 默认超时
+	timeoutStr := os.Getenv("COURSEWARE_PLATFORM_TIMEOUT")
+	timeout := 5 * time.Second // 默认超时
+	if timeoutStr != "" {
+		if timeoutSeconds, err := strconv.Atoi(timeoutStr); err == nil && timeoutSeconds > 0 {
+			timeout = time.Duration(timeoutSeconds) * time.Second
+		}
 	}
 
 	// 解析缓存TTL
