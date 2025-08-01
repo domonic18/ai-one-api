@@ -57,11 +57,6 @@ var coursewareClient *CoursewareClient
 
 // InitCoursewareClient 初始化课件平台API客户端
 func InitCoursewareClient() {
-	if coursewareClient != nil {
-		logger.SysLog("课件平台API客户端已初始化，跳过重复初始化")
-		return
-	}
-
 	// 获取配置
 	baseURL := config.CoursewarePlatformBaseURL
 	apiKey := config.CoursewarePlatformAPIKey
@@ -70,10 +65,22 @@ func InitCoursewareClient() {
 	// 验证配置
 	if baseURL == "" {
 		logger.SysError("课件平台API基础URL未配置")
+		// 设置一个标记，表示客户端未正确初始化
+		coursewareClient = &CoursewareClient{
+			baseURL:    "",
+			apiKey:     "",
+			httpClient: nil,
+		}
 		return
 	}
 	if apiKey == "" {
 		logger.SysError("课件平台API密钥未配置")
+		// 设置一个标记，表示客户端未正确初始化
+		coursewareClient = &CoursewareClient{
+			baseURL:    "",
+			apiKey:     "",
+			httpClient: nil,
+		}
 		return
 	}
 
@@ -99,6 +106,11 @@ func GetCoursewareClient() *CoursewareClient {
 	return coursewareClient
 }
 
+// IsValid 检查客户端是否有效
+func (c *CoursewareClient) IsValid() bool {
+	return c != nil && c.baseURL != "" && c.apiKey != "" && c.httpClient != nil
+}
+
 // SetBaseURL 设置API基础URL（用于测试）
 func (c *CoursewareClient) SetBaseURL(baseURL string) {
 	c.baseURL = baseURL
@@ -111,8 +123,8 @@ func (c *CoursewareClient) SetAPIKey(apiKey string) {
 
 // GetTeacherInfo 获取老师信息
 func (c *CoursewareClient) GetTeacherInfo(ctx context.Context, teacherId string) (*TeacherInfo, error) {
-	if c.baseURL == "" {
-		return nil, fmt.Errorf("课件平台API基础URL未配置")
+	if !c.IsValid() {
+		return nil, fmt.Errorf("课件平台API客户端未正确初始化")
 	}
 
 	// 构建请求URL
@@ -159,8 +171,8 @@ func (c *CoursewareClient) GetTeacherInfo(ctx context.Context, teacherId string)
 
 // GetSubjectInfo 获取学科组信息
 func (c *CoursewareClient) GetSubjectInfo(ctx context.Context, subjectId int) (*SubjectInfo, error) {
-	if c.baseURL == "" {
-		return nil, fmt.Errorf("课件平台API基础URL未配置")
+	if !c.IsValid() {
+		return nil, fmt.Errorf("课件平台API客户端未正确初始化")
 	}
 
 	// 构建请求URL
@@ -200,8 +212,8 @@ func (c *CoursewareClient) GetSubjectInfo(ctx context.Context, subjectId int) (*
 
 // GetUserConfig 获取用户模型配置
 func (c *CoursewareClient) GetUserConfig(ctx context.Context, userId string) (*UserConfig, error) {
-	if c.baseURL == "" {
-		return nil, fmt.Errorf("课件平台API基础URL未配置")
+	if !c.IsValid() {
+		return nil, fmt.Errorf("课件平台API客户端未正确初始化")
 	}
 
 	// 构建请求URL
@@ -304,8 +316,8 @@ func (c *CoursewareClient) PreloadUserConfigs(ctx context.Context, userIds []str
 
 // GetAllTeacherIds 获取所有老师ID列表（预加载用）
 func (c *CoursewareClient) GetAllTeacherIds(ctx context.Context) ([]string, error) {
-	if c.baseURL == "" {
-		return nil, fmt.Errorf("课件平台API基础URL未配置")
+	if !c.IsValid() {
+		return nil, fmt.Errorf("课件平台API客户端未正确初始化")
 	}
 
 	// 构建请求URL
@@ -369,8 +381,8 @@ func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []st
 		return []*TeacherInfo{}, nil
 	}
 
-	if c.baseURL == "" {
-		return nil, fmt.Errorf("课件平台API基础URL未配置")
+	if !c.IsValid() {
+		return nil, fmt.Errorf("课件平台API客户端未正确初始化")
 	}
 
 	// 构建请求URL

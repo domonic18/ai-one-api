@@ -34,16 +34,23 @@ func InitializeIdentityResolver() {
 		// 4. 创建 API 客户端
 		apiClient := client.GetCoursewareClient()
 
-		// 5. 创建身份解析器
+		// 5. 验证API客户端是否有效
+		if apiClient == nil || !apiClient.IsValid() {
+			logger.SysLog("课件平台API客户端初始化失败，回退到默认模式")
+			SetIdentityResolver(&DefaultIdentityResolver{})
+			return
+		}
+
+		// 6. 创建身份解析器
 		resolver := NewCoursewareIdentityResolver(apiClient, cache, config)
 
-		// 6. 设置为全局解析器
+		// 7. 设置为全局解析器
 		SetIdentityResolver(resolver)
 
-		// 7. 创建预加载管理器
+		// 8. 创建预加载管理器
 		preloadManager := NewPreloadManager(apiClient, cache, config)
 
-		// 8. 执行初始预加载
+		// 9. 执行初始预加载（在goroutine中执行，避免阻塞启动）
 		ctx := context.Background()
 		go func() {
 			logger.SysLog("开始执行初始预加载")
@@ -54,12 +61,12 @@ func InitializeIdentityResolver() {
 			}
 		}()
 
-		// 9. 启动定期刷新任务
+		// 10. 启动定期刷新任务
 		preloadManager.StartPeriodicRefresh(ctx)
 
 		logger.SysLog("课件平台身份解析器初始化完成")
 	} else {
-		// 10. 课件平台集成未启用，使用默认解析器
+		// 11. 课件平台集成未启用，使用默认解析器
 		SetIdentityResolver(&DefaultIdentityResolver{})
 
 		logger.SysLog("课件平台集成未启用，OneAPI将保持原有功能")
@@ -94,6 +101,7 @@ func loadCoursewareConfig() *CoursewareConfig {
 	// 从环境变量加载配置
 	enabled := os.Getenv("COURSEWARE_ENABLED") == "true"
 	if !enabled {
+		logger.SysLog("课件平台集成未启用 (COURSEWARE_ENABLED != true)")
 		return nil
 	}
 
@@ -101,7 +109,7 @@ func loadCoursewareConfig() *CoursewareConfig {
 	apiKey := os.Getenv("COURSEWARE_API_KEY")
 
 	if baseURL == "" || apiKey == "" {
-		logger.SysLog("课件平台配置不完整，禁用集成")
+		logger.SysLog("课件平台配置不完整，禁用集成 (baseURL或apiKey为空)")
 		return nil
 	}
 
@@ -139,6 +147,8 @@ func loadCoursewareConfig() *CoursewareConfig {
 	if defaultGroup == "" {
 		defaultGroup = "default"
 	}
+
+	logger.SysLogf("课件平台配置加载成功: baseURL=%s, timeout=%v, cacheTTL=%v", baseURL, timeout, cacheTTL)
 
 	return &CoursewareConfig{
 		Enabled:          true,
