@@ -6,6 +6,8 @@
     "redemption": "Redemption",
     "topup": "Top Up",
     "user": "User",
+    "group": "Groups",
+    "courseware": "Courseware",
     "dashboard": "Dashboard",
     "log": "Log",
     "setting": "Settings",
@@ -827,5 +829,69 @@
     "notice": {
       "password_copied": "New password copied to clipboard: {{password}}"
     }
+  },
+  "group": {
+    "title": "Group Management",
+    "table": {
+      "name": "Name",
+      "description": "Description",
+      "user_count": "User Count",
+      "quota": "Quota",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "buttons": {
+      "add": "Add Group",
+      "edit": "Edit",
+      "delete": "Delete",
+      "confirm_delete": "Confirm Delete"
+    },
+    "edit": {
+      "title_create": "Create Group",
+      "title_edit": "Edit Group",
+      "name": "Name",
+      "name_placeholder": "Please enter group name",
+      "description": "Description",
+      "description_placeholder": "Please enter group description",
+      "quota": "Quota",
+      "quota_placeholder": "Please enter quota"
+    }
+  },
+  "courseware": {
+    "title": "Courseware Integration",
+    "table": {
+      "user_id": "User ID",
+      "group_name": "Group",
+      "preferred_model": "Preferred Model",
+      "school": "School",
+      "subject": "Subject",
+      "updated_at": "Updated At",
+      "actions": "Actions"
+    },
+    "buttons": {
+      "test": "Test Connection",
+      "sync": "Sync Users",
+      "clear_cache": "Clear Cache",
+      "refresh": "Refresh Data",
+      "edit_config": "Edit Config"
+    },
+    "status": {
+      "connected": "Connected",
+      "disconnected": "Disconnected",
+      "syncing": "Syncing",
+      "idle": "Idle"
+    }
+  },
+  "common": {
+    "cancel": "Cancel",
+    "create": "Create",
+    "update": "Update",
+    "delete": "Delete",
+    "save": "Save",
+    "edit": "Edit",
+    "refresh": "Refresh",
+    "test": "Test",
+    "sync": "Sync",
+    "clear": "Clear"
   }
 }

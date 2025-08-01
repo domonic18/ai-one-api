@@ -26,6 +26,8 @@ import Log from './pages/Log';
 import Chat from './pages/Chat';
 import LarkOAuth from './components/LarkOAuth';
 import Dashboard from './pages/Dashboard';
+import GroupManagement from './pages/GroupManagement';
+import CoursewareIntegration from './pages/CoursewareIntegration';
 
 const Home = lazy(() => import('./pages/Home'));
 const About = lazy(() => import('./pages/About'));
@@ -303,6 +305,22 @@ function App() {
         element={
           <PrivateRoute>
             <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path='/group'
+        element={
+          <PrivateRoute>
+            <GroupManagement />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path='/courseware'
+        element={
+          <PrivateRoute>
+            <CoursewareIntegration />
           </PrivateRoute>
         }
       />

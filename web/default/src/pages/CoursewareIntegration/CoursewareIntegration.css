@@ -1,0 +1,96 @@
+.courseware-container {
+  padding: 20px 0;
+}
+
+.courseware-stats-grid {
+  margin-bottom: 20px;
+}
+
+.courseware-config-card {
+  margin-bottom: 20px;
+}
+
+.courseware-actions {
+  margin: 20px 0;
+}
+
+.courseware-table-container {
+  margin-top: 20px;
+}
+
+.courseware-modal {
+  max-width: 800px;
+}
+
+.courseware-form-field {
+  margin-bottom: 15px;
+}
+
+.courseware-status-connected {
+  background-color: #21ba45 !important;
+  color: white !important;
+}
+
+.courseware-status-disconnected {
+  background-color: #db2828 !important;
+  color: white !important;
+}
+
+.courseware-status-syncing {
+  background-color: #2185d0 !important;
+  color: white !important;
+}
+
+.courseware-status-idle {
+  background-color: #767676 !important;
+  color: white !important;
+}
+
+.courseware-table-header {
+  background-color: #f9fafb;
+}
+
+.courseware-table-row:hover {
+  background-color: #f8f9fa;
+}
+
+.courseware-button-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.courseware-statistic {
+  text-align: center;
+}
+
+.courseware-statistic-value {
+  font-size: 2em;
+  font-weight: bold;
+  color: #2185d0;
+}
+
+.courseware-statistic-label {
+  color: #767676;
+  font-size: 0.9em;
+}
+
+.courseware-progress {
+  margin-top: 10px;
+}
+
+.courseware-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+@media (max-width: 768px) {
+  .courseware-config-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .courseware-button-group {
+    flex-direction: column;
+  }
+} 

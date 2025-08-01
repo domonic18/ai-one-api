@@ -1,0 +1,61 @@
+.group-management-container {
+  padding: 20px 0;
+}
+
+.group-stats-grid {
+  margin-bottom: 20px;
+}
+
+.group-table-container {
+  margin-top: 20px;
+}
+
+.group-actions {
+  margin-bottom: 20px;
+}
+
+.group-modal {
+  max-width: 600px;
+}
+
+.group-form-field {
+  margin-bottom: 15px;
+}
+
+.group-status-active {
+  background-color: #21ba45 !important;
+  color: white !important;
+}
+
+.group-status-idle {
+  background-color: #767676 !important;
+  color: white !important;
+}
+
+.group-table-header {
+  background-color: #f9fafb;
+}
+
+.group-table-row:hover {
+  background-color: #f8f9fa;
+}
+
+.group-button-group {
+  display: flex;
+  gap: 5px;
+}
+
+.group-statistic {
+  text-align: center;
+}
+
+.group-statistic-value {
+  font-size: 2em;
+  font-weight: bold;
+  color: #2185d0;
+}
+
+.group-statistic-label {
+  color: #767676;
+  font-size: 0.9em;
+} 

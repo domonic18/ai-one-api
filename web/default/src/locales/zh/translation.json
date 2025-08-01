@@ -6,6 +6,8 @@
     "redemption": "兑换",
     "topup": "充值",
     "user": "用户",
+    "group": "用户组",
+    "courseware": "课件集成",
     "dashboard": "总览",
     "log": "日志",
     "setting": "设置",
@@ -823,5 +825,69 @@
     "notice": {
       "password_copied": "新密码已复制到剪贴板：{{password}}"
     }
+  },
+  "group": {
+    "title": "用户组管理",
+    "table": {
+      "name": "名称",
+      "description": "描述",
+      "user_count": "用户数",
+      "quota": "配额",
+      "status": "状态",
+      "actions": "操作"
+    },
+    "buttons": {
+      "add": "添加用户组",
+      "edit": "编辑",
+      "delete": "删除",
+      "confirm_delete": "确认删除"
+    },
+    "edit": {
+      "title_create": "创建用户组",
+      "title_edit": "编辑用户组",
+      "name": "名称",
+      "name_placeholder": "请输入用户组名称",
+      "description": "描述",
+      "description_placeholder": "请输入用户组描述",
+      "quota": "配额",
+      "quota_placeholder": "请输入配额"
+    }
+  },
+  "courseware": {
+    "title": "课件平台集成",
+    "table": {
+      "user_id": "用户ID",
+      "group_name": "用户组",
+      "preferred_model": "偏好模型",
+      "school": "学校",
+      "subject": "学科组",
+      "updated_at": "更新时间",
+      "actions": "操作"
+    },
+    "buttons": {
+      "test": "测试连接",
+      "sync": "同步用户",
+      "clear_cache": "清理缓存",
+      "refresh": "刷新数据",
+      "edit_config": "编辑配置"
+    },
+    "status": {
+      "connected": "已连接",
+      "disconnected": "未连接",
+      "syncing": "同步中",
+      "idle": "空闲"
+    }
+  },
+  "common": {
+    "cancel": "取消",
+    "create": "创建",
+    "update": "更新",
+    "delete": "删除",
+    "save": "保存",
+    "edit": "编辑",
+    "refresh": "刷新",
+    "test": "测试",
+    "sync": "同步",
+    "clear": "清理"
   }
 }
