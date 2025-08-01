@@ -28,7 +28,7 @@ const GroupManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    quota: 0,
+    total_quota: 0,
     user_count: 0,
   });
   const [stats, setStats] = useState({
@@ -44,10 +44,17 @@ const GroupManagement = () => {
   const loadGroups = async () => {
     try {
       setLoading(true);
-      const response = await API.get('/api/group');
+      // 使用新的详细API端点
+      const response = await API.get('/api/group/detail');
       if (response.data.success) {
-        setGroups(response.data.data || []);
-        calculateStats(response.data.data || []);
+        const groupData = response.data.data || [];
+        // 为每个组添加ID字段
+        const groupsWithId = groupData.map((group, index) => ({
+          ...group,
+          id: index + 1,
+        }));
+        setGroups(groupsWithId);
+        calculateStats(groupsWithId);
       } else {
         showError(response.data.message || '加载用户组失败');
       }
@@ -62,7 +69,7 @@ const GroupManagement = () => {
     const stats = {
       totalGroups: groupData.length,
       totalUsers: groupData.reduce((sum, group) => sum + (group.user_count || 0), 0),
-      totalQuota: groupData.reduce((sum, group) => sum + (group.quota || 0), 0),
+      totalQuota: groupData.reduce((sum, group) => sum + (group.total_quota || 0), 0),
     };
     setStats(stats);
   };
@@ -107,7 +114,7 @@ const GroupManagement = () => {
     setFormData({
       name: group.name,
       description: group.description || '',
-      quota: group.quota || 0,
+      total_quota: group.total_quota || 0,
       user_count: group.user_count || 0,
     });
     setModalOpen(true);
@@ -123,7 +130,7 @@ const GroupManagement = () => {
     setFormData({
       name: '',
       description: '',
-      quota: 0,
+      total_quota: 0,
       user_count: 0,
     });
   };
@@ -189,8 +196,8 @@ const GroupManagement = () => {
           </Table.Header>
 
           <Table.Body>
-            {groups.map((group) => (
-              <Table.Row key={group.id}>
+            {groups.map((group, index) => (
+              <Table.Row key={group.id || `group-${index}`}>
                 <Table.Cell>
                   <Header as="h4">
                     <Header.Content>
@@ -201,7 +208,7 @@ const GroupManagement = () => {
                 </Table.Cell>
                 <Table.Cell>{group.description || '-'}</Table.Cell>
                 <Table.Cell>{group.user_count || 0}</Table.Cell>
-                <Table.Cell>{group.quota ? group.quota.toLocaleString() : '-'}</Table.Cell>
+                <Table.Cell>{group.total_quota ? group.total_quota.toLocaleString() : '-'}</Table.Cell>
                 <Table.Cell>{renderGroupStatus(group)}</Table.Cell>
                 <Table.Cell>
                   <Button.Group size="mini">
@@ -267,8 +274,8 @@ const GroupManagement = () => {
               <Form.Input
                 type="number"
                 placeholder={t('group.edit.quota_placeholder')}
-                value={formData.quota}
-                onChange={(e, { value }) => setFormData({ ...formData, quota: parseInt(value) || 0 })}
+                value={formData.total_quota}
+                onChange={(e, { value }) => setFormData({ ...formData, total_quota: parseInt(value) || 0 })}
               />
             </Form.Field>
           </Form>
