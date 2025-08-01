@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模拟课件平台API服务器</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>模拟课件平台API服务器</h1>
+            <nav>
+                <a href="#users" class="nav-link active">用户管理</a>
+                <a href="#api-test" class="nav-link">API测试</a>
+                <a href="#config" class="nav-link">配置管理</a>
+            </nav>
+        </header>
+        
+        <main>
+            <!-- 用户管理面板 -->
+            <section id="users" class="panel active">
+                <h2>用户信息管理</h2>
+                <div class="user-form">
+                    <h3>添加/编辑用户</h3>
+                    <form id="userForm">
+                        <div class="form-group">
+                            <label for="teacherId">教师ID:</label>
+                            <input type="text" id="teacherId" name="teacherId" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="teacherName">教师姓名:</label>
+                            <input type="text" id="teacherName" name="teacherName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="schoolId">学校ID:</label>
+                            <input type="number" id="schoolId" name="schoolId" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="schoolName">学校名称:</label>
+                            <input type="text" id="schoolName" name="schoolName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="subjectId">学科ID:</label>
+                            <input type="number" id="subjectId" name="subjectId" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="subjectName">学科名称:</label>
+                            <input type="text" id="subjectName" name="subjectName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="oneapiGroup">OneAPI组:</label>
+                            <input type="text" id="oneapiGroup" name="oneapiGroup" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="preferredModel">首选模型:</label>
+                            <input type="text" id="preferredModel" name="preferredModel" required>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">保存</button>
+                            <button type="button" class="btn btn-secondary" onclick="clearForm()">清空</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="user-list">
+                    <h3>用户列表</h3>
+                    <div class="table-container">
+                        <table id="userTable">
+                            <thead>
+                                <tr>
+                                    <th>教师ID</th>
+                                    <th>教师姓名</th>
+                                    <th>学校</th>
+                                    <th>学科</th>
+                                    <th>OneAPI组</th>
+                                    <th>首选模型</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="userTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- API测试面板 -->
+            <section id="api-test" class="panel">
+                <h2>API接口测试</h2>
+                <div class="api-tester">
+                    <div class="test-section">
+                        <h3>获取教师信息</h3>
+                        <div class="test-form">
+                            <input type="text" id="testTeacherId" placeholder="输入教师ID" value="teacher_001">
+                            <button onclick="testAPI('teacher_info')" class="btn btn-primary">测试</button>
+                        </div>
+                        <div class="test-result" id="testResult1"></div>
+                    </div>
+                    
+                    <div class="test-section">
+                        <h3>获取所有教师ID</h3>
+                        <div class="test-form">
+                            <button onclick="testAPI('teacher_ids')" class="btn btn-primary">测试</button>
+                        </div>
+                        <div class="test-result" id="testResult2"></div>
+                    </div>
+                    
+                    <div class="test-section">
+                        <h3>批量获取教师信息</h3>
+                        <div class="test-form">
+                            <input type="text" id="testBatchIds" placeholder="输入教师ID列表，用逗号分隔" value="teacher_001,teacher_002">
+                            <button onclick="testBatchAPI()" class="btn btn-primary">测试</button>
+                        </div>
+                        <div class="test-result" id="testResult3"></div>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 配置管理面板 -->
+            <section id="config" class="panel">
+                <h2>系统配置</h2>
+                <div class="config-form">
+                    <h3>服务器配置</h3>
+                    <form id="configForm">
+                        <div class="form-group">
+                            <label for="serverPort">服务器端口:</label>
+                            <input type="number" id="serverPort" name="port" value="8080" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="serverHost">服务器地址:</label>
+                            <input type="text" id="serverHost" name="host" value="0.0.0.0" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="apiKey">API密钥:</label>
+                            <input type="text" id="apiKey" name="apiKey" value="mock_api_key_123" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="responseDelay">响应延迟:</label>
+                            <input type="text" id="responseDelay" name="responseDelay" value="0ms" placeholder="如: 100ms">
+                        </div>
+                        <div class="form-group">
+                            <label for="errorRate">错误率:</label>
+                            <input type="number" id="errorRate" name="errorRate" value="0" min="0" max="1" step="0.1" placeholder="0-1之间">
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary">保存配置</button>
+                            <button type="button" class="btn btn-warning" onclick="resetToDefault()">重置为默认</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <script src="/static/script.js"></script>
+</body>
+</html> 

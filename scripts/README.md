@@ -6,16 +6,33 @@
 
 ```
 scripts/
-├── main.go                 # 统一入口脚本（主控制台）
-├── Makefile               # 快速命令构建工具
-├── config.env.example     # 配置文件模板
-├── README.md             # 使用文档（本文件）
-├── .env                  # 配置文件（用户创建）
-└── cmd/                  # 独立功能脚本
-    ├── redis_helper.go   # Redis助手工具
-
-    ├── token_checker.go  # 令牌状态检查
-    └── config_loader.go  # 配置加载工具
+├── README.md                 # 脚本工具总说明文档
+├── Makefile                  # 统一构建工具
+├── config.env.example        # 配置文件模板
+├── .env                      # 配置文件（用户创建）
+├── main.go                   # 统一入口脚本（主控制台）
+├── runner.go                 # 脚本运行器
+├── utils/                    # 通用工具库
+│   └── config_loader.go      # 配置加载工具
+├── migration/                # 数据库迁移脚本
+│   └── main.go
+├── token/                    # 令牌相关工具
+│   └── main.go
+├── cmd/                      # 独立功能脚本
+│   ├── redis_helper.go       # Redis助手工具
+│   └── token_checker.go      # 令牌状态检查
+└── mock-server/              # 模拟课件平台API服务器
+    ├── main.go               # 主程序入口
+    ├── go.mod                # Go模块文件
+    ├── config/               # 配置管理
+    ├── handlers/             # API处理器
+    ├── models/               # 数据模型
+    ├── storage/              # 数据存储
+    ├── static/               # Web界面
+    ├── data/                 # 数据文件
+    ├── Dockerfile            # Docker构建文件
+    ├── docker-compose.yml    # Docker编排文件
+    └── README.md             # 使用说明
 ```
 
 ## 🚀 快速开始
@@ -40,6 +57,13 @@ make config         # 显示配置
 ```
 
 ## 📋 功能概览
+
+### 目录组织说明
+
+**scripts目录包含两类工具：**
+
+1. **脚本工具** (`cmd/`, `utils/`, `migration/`, `token/`): 独立的命令行脚本工具
+2. **服务工具** (`mock-server/`): 需要以服务形式运行的测试工具
 
 ### 统一入口脚本 (`main.go`)
 提供统一的命令行界面，避免直接运行独立脚本的冲突问题。
@@ -103,6 +127,37 @@ go run main.go token -token sk-xxxxxx -format json
 go run main.go token -token sk-xxxxxx -format brief
 ```
 
+### 4. 模拟课件平台API服务器 (`mock-server`)
+**文件位置：** `mock-server/`
+
+**功能特性：**
+- ✅ 模拟课件平台API接口
+- ✅ Web管理界面
+- ✅ 用户信息管理
+- ✅ API响应配置
+- ✅ 异常场景测试
+- ✅ Docker部署支持
+
+**使用示例：**
+```bash
+# 启动模拟服务器
+cd mock-server
+go run main.go
+
+# 通过Docker启动
+cd mock-server
+docker-compose up -d
+
+# 访问Web管理界面
+# http://localhost:8080
+
+# 测试API接口
+curl -X GET "http://localhost:8080/api/v1/teacher/teacher_001/info" \
+  -H "Authorization: Bearer mock_api_key_123"
+```
+
+**详细文档：** 请参考 `mock-server/README.md`
+
 ## ⚙️ 配置文件系统
 
 ### 配置文件模板 (`config.env.example`)
@@ -138,6 +193,7 @@ make setup          # 创建 .env 配置文件
 make redis          # 运行Redis助手帮助
 make smart-model    # 运行智能模型测试帮助
 make token          # 运行令牌检查帮助
+make mock-server    # 启动模拟课件平台API服务器
 make config         # 显示当前配置
 make all            # 运行所有脚本帮助
 make clean          # 清理临时文件
@@ -151,16 +207,19 @@ make env-info       # 显示环境信息
 - **Redis调试**：验证用户配置存储功能
 - **模型测试**：测试智能选择逻辑
 - **令牌验证**：检查API权限和配额
+- **API模拟**：模拟课件平台API进行开发测试
 
 ### 测试阶段
 - **功能测试**：验证各模块功能完整性
 - **集成测试**：测试系统整体流程
 - **性能测试**：评估系统响应时间
+- **接口测试**：测试课件平台API集成功能
 
 ### 生产维护
 - **配置管理**：批量更新用户配置
 - **状态监控**：定期检查系统健康状态
 - **故障诊断**：快速定位问题根源
+- **环境隔离**：在独立环境中测试新功能
 
 ## 🛠️ 环境要求
 
@@ -236,6 +295,7 @@ make env-info
 
 - **统一入口**：`main.go`（主控制台）
 - **功能模块**：`cmd/xxx_helper.go`（具体工具）
+- **服务工具**：`mock-server/`（模拟服务）
 - **配置文件**：`config.env.example`（模板）
 - **构建工具**：`Makefile`（快捷命令）
 - **文档**：`README.md`（使用说明）
@@ -246,6 +306,12 @@ make env-info
 1. 创建脚本文件到 `cmd/` 目录
 2. 更新 `main.go` 中的脚本列表
 3. 更新 `Makefile` 中的快捷目标
+4. 更新本README文档
+
+### 添加新服务工具
+1. 创建服务目录到根目录（如 `mock-server/`）
+2. 在服务目录中创建完整的项目结构
+3. 更新 `Makefile` 中的服务启动目标
 4. 更新本README文档
 
 ### 改进建议
@@ -265,5 +331,7 @@ make env-info
 ✅ **文档完善**：提供详细使用说明
 ✅ **错误处理**：改进错误提示和诊断
 ✅ **测试验证**：确保所有脚本可运行
+✅ **目录组织**：清晰分离脚本工具和服务工具
+✅ **服务集成**：集成模拟课件平台API服务器
 
-现在所有脚本都可以通过统一入口使用，支持配置文件预设，提供更好的用户体验。
+现在所有脚本都可以通过统一入口使用，支持配置文件预设，提供更好的用户体验。同时新增的模拟服务器为OneAPI v3.0功能开发提供了完整的测试环境。

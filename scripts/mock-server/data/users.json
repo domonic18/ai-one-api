@@ -1,0 +1,22 @@
+[
+  {
+    "teacher_id": "teacher_001",
+    "teacher_name": "张老师",
+    "school_id": 1,
+    "school_name": "北京中学",
+    "subject_id": 10,
+    "subject_name": "数学组",
+    "oneapi_group": "beijing_math_group",
+    "preferred_model": "gpt-4"
+  },
+  {
+    "teacher_id": "teacher_002",
+    "teacher_name": "李老师",
+    "school_id": 1,
+    "school_name": "北京中学",
+    "subject_id": 2,
+    "subject_name": "语文组",
+    "oneapi_group": "beijing_chinese_group",
+    "preferred_model": "gemini-pro"
+  }
+]

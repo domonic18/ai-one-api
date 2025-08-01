@@ -1,0 +1,12 @@
+{
+  "server": {
+    "port": 8080,
+    "host": "0.0.0.0"
+  },
+  "api": {
+    "response_delay": "0ms",
+    "error_rate": 0,
+    "api_key": "mock_api_key_123"
+  },
+  "default_users": []
+}

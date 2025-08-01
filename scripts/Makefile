@@ -1,7 +1,7 @@
 # One-API 辅助脚本 Makefile
 # 用于快速执行各种测试和管理脚本
 
-.PHONY: help redis smart-model token all clean config setup
+.PHONY: help redis smart-model token mock-server mock-server-docker mock-server-stop mock-server-logs mock-server-build all clean config setup
 
 # 默认目标
 .DEFAULT_GOAL := help
@@ -33,6 +33,14 @@ smart-model: ## 运行智能模型选择测试工具
 token: ## 运行令牌状态检查工具
 	@echo "$(GREEN)运行令牌状态检查工具...$(NC)"
 	go run runner.go token -help
+
+mock-server: ## 启动模拟课件平台API服务器
+	@echo "$(GREEN)启动模拟课件平台API服务器...$(NC)"
+	@if [ -d "mock-server" ]; then \
+		cd mock-server && go run main.go; \
+	else \
+		echo "$(RED)mock-server目录不存在，请先创建模拟服务器$(NC)"; \
+	fi
 
 all: ## 显示所有脚本帮助信息
 	@echo "$(GREEN)显示所有脚本帮助信息...$(NC)"
@@ -83,10 +91,12 @@ run-all-tests: ## 运行所有测试脚本的帮助信息
 list-scripts: ## 列出所有可用脚本
 	@echo "$(GREEN)可用脚本:$(NC)"
 	@echo "  - cmd/redis_helper.go      Redis助手工具"
-
 	@echo "  - cmd/token_checker.go     令牌状态检查工具"
 	@echo "  - runner.go               统一入口脚本"
 	@echo "  - cmd/config_loader.go    配置加载工具"
+	@echo ""
+	@echo "$(GREEN)可用服务:$(NC)"
+	@echo "  - mock-server/             模拟课件平台API服务器"
 
 script-info: ## 显示脚本目录信息
 	@echo "$(GREEN)脚本目录信息:$(NC)"
@@ -132,3 +142,36 @@ quick-redis-test: ## 快速Redis测试
 quick-token-test: ## 快速令牌测试
 	@echo "$(GREEN)快速令牌测试...$(NC)"
 	go run cmd/token_checker.go -help
+
+# Mock服务器相关目标
+mock-server-docker: ## 通过Docker启动模拟服务器
+	@echo "$(GREEN)通过Docker启动模拟服务器...$(NC)"
+	@if [ -d "mock-server" ]; then \
+		cd mock-server && docker-compose up -d; \
+	else \
+		echo "$(RED)mock-server目录不存在$(NC)"; \
+	fi
+
+mock-server-stop: ## 停止模拟服务器
+	@echo "$(GREEN)停止模拟服务器...$(NC)"
+	@if [ -d "mock-server" ]; then \
+		cd mock-server && docker-compose down; \
+	else \
+		echo "$(RED)mock-server目录不存在$(NC)"; \
+	fi
+
+mock-server-logs: ## 查看模拟服务器日志
+	@echo "$(GREEN)查看模拟服务器日志...$(NC)"
+	@if [ -d "mock-server" ]; then \
+		cd mock-server && docker-compose logs -f; \
+	else \
+		echo "$(RED)mock-server目录不存在$(NC)"; \
+	fi
+
+mock-server-build: ## 构建模拟服务器
+	@echo "$(GREEN)构建模拟服务器...$(NC)"
+	@if [ -d "mock-server" ]; then \
+		cd mock-server && go build -o mock-courseware-platform .; \
+	else \
+		echo "$(RED)mock-server目录不存在$(NC)"; \
+	fi
