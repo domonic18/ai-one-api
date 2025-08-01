@@ -18,8 +18,6 @@ type GroupInfo struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 	UserCount   int64  `json:"user_count"`
-	TotalQuota  int64  `json:"total_quota"`
-	UsedQuota   int64  `json:"used_quota"`
 }
 
 func GetGroups(c *gin.Context) {
@@ -72,27 +70,22 @@ func GetGroupsDetail(c *gin.Context) {
 			Description: getGroupDescription(groupName),
 		}
 
-		// 统计该用户组的用户数量和配额
+		// 统计该用户组的用户数量
 		var userCount int64
-		var totalQuota int64
-		var usedQuota int64
 
-		// 查询用户数量
-		model.DB.Model(&model.User{}).Where("`group` = ? AND status = ?", groupName, model.UserStatusEnabled).Count(&userCount)
-
-		// 查询总配额和已使用配额
-		model.DB.Model(&model.User{}).Where("`group` = ? AND status = ?", groupName, model.UserStatusEnabled).
-			Select("COALESCE(SUM(quota), 0) as total_quota, COALESCE(SUM(used_quota), 0) as used_quota").
-			Scan(&struct {
-				TotalQuota int64 `json:"total_quota"`
-				UsedQuota  int64 `json:"used_quota"`
-			}{TotalQuota: totalQuota, UsedQuota: usedQuota})
+		// 查询用户数量（排除用户组代表用户）
+		model.DB.Model(&model.User{}).
+			Where("`group` = ? AND username NOT LIKE 'group_%'", groupName).
+			Count(&userCount)
 
 		groupInfo.UserCount = userCount
-		groupInfo.TotalQuota = totalQuota
-		groupInfo.UsedQuota = usedQuota
 
 		groups = append(groups, groupInfo)
+	}
+
+	logger.SysLog(fmt.Sprintf("GetGroupsDetail 返回 %d 个用户组", len(groups)))
+	for i, group := range groups {
+		logger.SysLog(fmt.Sprintf("用户组 %d: name=%s, description=%s", i, group.Name, group.Description))
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -132,7 +125,6 @@ func getGroupDescription(groupName string) string {
 type CreateGroupRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
-	TotalQuota  int64  `json:"total_quota"`
 	UserCount   int64  `json:"user_count"`
 }
 
@@ -140,7 +132,6 @@ type CreateGroupRequest struct {
 type UpdateGroupRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Description string `json:"description"`
-	TotalQuota  int64  `json:"total_quota"`
 	UserCount   int64  `json:"user_count"`
 }
 
@@ -194,12 +185,12 @@ func CreateGroup(c *gin.Context) {
 
 	defaultUser := &model.User{
 		Username:    "group_" + req.Name,
-		Password:    "group_password", // 实际项目中应该使用更安全的方式
-		DisplayName: displayName,      // 使用描述作为显示名称
-		Role:        model.RoleAdminUser,
-		Status:      model.UserStatusDisabled, // 禁用状态，仅用于标识用户组
+		Password:    "group_password",        // 实际项目中应该使用更安全的方式
+		DisplayName: displayName,             // 使用描述作为显示名称
+		Role:        model.RoleCommonUser,    // 默认普通用户
+		Status:      model.UserStatusEnabled, // 默认启用状态，仅用于标识用户组
 		Group:       req.Name,
-		Quota:       req.TotalQuota,
+		Quota:       0,                         // 用户组代表用户不需要配额
 		AffCode:     random.GetRandomString(8), // 生成唯一的推荐码
 		AccessToken: random.GetUUID(),          // 生成唯一的访问令牌
 	}
@@ -270,10 +261,11 @@ func UpdateGroup(c *gin.Context) {
 	}
 
 	// 更新用户组信息
-	// 这里我们更新该组下所有用户的配额
+	// 用户组本身不管理配额，只更新描述信息
+	// 这里可以更新用户组代表用户的显示名称
 	if err := model.DB.Model(&model.User{}).
-		Where("`group` = ? AND status = ?", groupName, model.UserStatusEnabled).
-		Update("quota", req.TotalQuota).Error; err != nil {
+		Where("username = ? AND status = ?", "group_"+groupName, model.UserStatusEnabled).
+		Update("display_name", req.Description).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "更新用户组失败: " + err.Error(),

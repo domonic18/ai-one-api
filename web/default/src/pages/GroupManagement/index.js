@@ -28,13 +28,11 @@ const GroupManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     description: '',
-    total_quota: 0,
     user_count: 0,
   });
   const [stats, setStats] = useState({
     totalGroups: 0,
     totalUsers: 0,
-    totalQuota: 0,
   });
 
   useEffect(() => {
@@ -49,11 +47,14 @@ const GroupManagement = () => {
       if (response.data.success) {
         const groupData = response.data.data || [];
         // 使用用户组名称作为ID
-        const groupsWithId = groupData.map((group, index) => ({
-          ...group,
-          id: group.name, // 使用用户组名称作为ID
-          index: index + 1, // 保留索引用于显示
-        }));
+        const groupsWithId = groupData.map((group, index) => {
+          console.log('Group data:', group); // 调试信息
+          return {
+            ...group,
+            id: group.name || `group_${index + 1}`, // 使用用户组名称作为ID，如果没有name则使用fallback
+            index: index + 1, // 保留索引用于显示
+          };
+        });
         setGroups(groupsWithId);
         calculateStats(groupsWithId);
       } else {
@@ -70,7 +71,6 @@ const GroupManagement = () => {
     const stats = {
       totalGroups: groupData.length,
       totalUsers: groupData.reduce((sum, group) => sum + (group.user_count || 0), 0),
-      totalQuota: groupData.reduce((sum, group) => sum + (group.total_quota || 0), 0),
     };
     setStats(stats);
   };
@@ -103,6 +103,7 @@ const GroupManagement = () => {
 
   const handleDelete = async () => {
     try {
+      console.log('Deleting group:', editingGroup); // 调试信息
       const response = await API.delete(`/api/group/${editingGroup.id}`);
       if (response.data.success) {
         showSuccess('用户组删除成功');
@@ -129,7 +130,6 @@ const GroupManagement = () => {
     setFormData({
       name: group.name,
       description: group.description || '',
-      total_quota: group.total_quota || 0,
       user_count: group.user_count || 0,
     });
     setModalOpen(true);
@@ -145,7 +145,6 @@ const GroupManagement = () => {
     setFormData({
       name: '',
       description: '',
-      total_quota: 0,
       user_count: 0,
     });
   };
@@ -165,7 +164,7 @@ const GroupManagement = () => {
       </Header>
 
       {/* 统计信息 */}
-      <Grid columns={3} stackable style={{ marginBottom: '20px' }}>
+      <Grid columns={2} stackable style={{ marginBottom: '20px' }}>
         <Grid.Column>
           <Statistic>
             <Statistic.Value>{stats.totalGroups}</Statistic.Value>
@@ -176,12 +175,6 @@ const GroupManagement = () => {
           <Statistic>
             <Statistic.Value>{stats.totalUsers}</Statistic.Value>
             <Statistic.Label>总用户数</Statistic.Label>
-          </Statistic>
-        </Grid.Column>
-        <Grid.Column>
-          <Statistic>
-            <Statistic.Value>{stats.totalQuota.toLocaleString()}</Statistic.Value>
-            <Statistic.Label>总配额</Statistic.Label>
           </Statistic>
         </Grid.Column>
       </Grid>
@@ -204,7 +197,6 @@ const GroupManagement = () => {
               <Table.HeaderCell>{t('group.table.name')}</Table.HeaderCell>
               <Table.HeaderCell>{t('group.table.description')}</Table.HeaderCell>
               <Table.HeaderCell>{t('group.table.user_count')}</Table.HeaderCell>
-              <Table.HeaderCell>{t('group.table.quota')}</Table.HeaderCell>
               <Table.HeaderCell>{t('group.table.status')}</Table.HeaderCell>
               <Table.HeaderCell>{t('group.table.actions')}</Table.HeaderCell>
             </Table.Row>
@@ -223,7 +215,6 @@ const GroupManagement = () => {
                 </Table.Cell>
                 <Table.Cell>{group.description || '-'}</Table.Cell>
                 <Table.Cell>{group.user_count || 0}</Table.Cell>
-                <Table.Cell>{group.total_quota ? group.total_quota.toLocaleString() : '-'}</Table.Cell>
                 <Table.Cell>{renderGroupStatus(group)}</Table.Cell>
                 <Table.Cell>
                   <Button.Group size="mini">
@@ -284,15 +275,7 @@ const GroupManagement = () => {
                 onChange={(e, { value }) => setFormData({ ...formData, description: value })}
               />
             </Form.Field>
-            <Form.Field>
-              <label>{t('group.edit.quota')}</label>
-              <Form.Input
-                type="number"
-                placeholder={t('group.edit.quota_placeholder')}
-                value={formData.total_quota}
-                onChange={(e, { value }) => setFormData({ ...formData, total_quota: parseInt(value) || 0 })}
-              />
-            </Form.Field>
+
           </Form>
         </Modal.Content>
         <Modal.Actions>
