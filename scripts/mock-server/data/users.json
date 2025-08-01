@@ -18,5 +18,15 @@
     "subject_name": "语文组",
     "oneapi_group": "beijing_chinese_group",
     "preferred_model": "gemini-pro"
+  },
+  {
+    "teacher_id": "29be822a-b330-47f3-8dbf-90dab7c3c189",
+    "teacher_name": "诸葛东明",
+    "school_id": 3,
+    "school_name": "光华学校",
+    "subject_id": 4,
+    "subject_name": "AI组",
+    "oneapi_group": "beijing_math_group",
+    "preferred_model": "deepseek-chat"
   }
 ]
