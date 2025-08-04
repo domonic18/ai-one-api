@@ -8,7 +8,7 @@ type TeacherInfo struct {
 	SchoolName     string `json:"school_name"`
 	SubjectId      int    `json:"subject_id"`
 	SubjectName    string `json:"subject_name"`
-	OneapiGroup    string `json:"oneapi_group"`
+	GroupName      string `json:"group_name"`
 	PreferredModel string `json:"preferred_model"`
 }
 
@@ -67,7 +67,7 @@ type WebUser struct {
 	SchoolName     string `json:"school_name" form:"school_name"`
 	SubjectId      int    `json:"subject_id" form:"subject_id"`
 	SubjectName    string `json:"subject_name" form:"subject_name"`
-	OneapiGroup    string `json:"oneapi_group" form:"oneapi_group"`
+	GroupName      string `json:"group_name" form:"group_name"`
 	PreferredModel string `json:"preferred_model" form:"preferred_model"`
 }
 

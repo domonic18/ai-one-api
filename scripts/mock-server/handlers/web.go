@@ -51,7 +51,7 @@ func AddUser(c *gin.Context) {
 		SchoolName:     user.SchoolName,
 		SubjectId:      user.SubjectId,
 		SubjectName:    user.SubjectName,
-		OneapiGroup:    user.OneapiGroup,
+		GroupName:      user.GroupName,
 		PreferredModel: user.PreferredModel,
 	}
 
@@ -82,7 +82,7 @@ func UpdateUser(c *gin.Context) {
 		SchoolName:     user.SchoolName,
 		SubjectId:      user.SubjectId,
 		SubjectName:    user.SubjectName,
-		OneapiGroup:    user.OneapiGroup,
+		GroupName:      user.GroupName,
 		PreferredModel: user.PreferredModel,
 	}
 

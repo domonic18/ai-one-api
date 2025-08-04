@@ -52,7 +52,7 @@ function displayUsers(users) {
             <td>${user.teacher_name}</td>
             <td>${user.school_name}</td>
             <td>${user.subject_name}</td>
-            <td>${user.oneapi_group}</td>
+            <td>${user.group_name}</td>
             <td>${user.preferred_model}</td>
             <td>
                 <button class="btn btn-primary" onclick="editUser('${user.teacher_id}')">编辑</button>
@@ -76,7 +76,7 @@ async function editUser(teacherId) {
         document.getElementById('schoolName').value = user.school_name;
         document.getElementById('subjectId').value = user.subject_id;
         document.getElementById('subjectName').value = user.subject_name;
-        document.getElementById('oneapiGroup').value = user.oneapi_group;
+        document.getElementById('groupName').value = user.group_name;
         document.getElementById('preferredModel').value = user.preferred_model;
         
         currentEditUserId = teacherId;
@@ -131,7 +131,7 @@ document.getElementById('userForm').addEventListener('submit', async function(e)
         school_name: formData.get('schoolName'),
         subject_id: parseInt(formData.get('subjectId')),
         subject_name: formData.get('subjectName'),
-        oneapi_group: formData.get('oneapiGroup'),
+        group_name: formData.get('groupName'),
         preferred_model: formData.get('preferredModel')
     };
     

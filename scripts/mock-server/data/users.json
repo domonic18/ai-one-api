@@ -6,7 +6,7 @@
     "school_name": "北京中学",
     "subject_id": 10,
     "subject_name": "数学组",
-    "oneapi_group": "beijing_math_group",
+    "group_name": "beijing_math_group",
     "preferred_model": "gpt-4"
   },
   {
@@ -16,7 +16,7 @@
     "school_name": "北京中学",
     "subject_id": 2,
     "subject_name": "语文组",
-    "oneapi_group": "beijing_chinese_group",
+    "group_name": "beijing_chinese_group",
     "preferred_model": "gemini-pro"
   },
   {
@@ -26,7 +26,7 @@
     "school_name": "光华学校",
     "subject_id": 4,
     "subject_name": "AI组",
-    "oneapi_group": "beijing_math_group",
+    "group_name": "beijing_math_group",
     "preferred_model": "deepseek-chat"
   }
 ]

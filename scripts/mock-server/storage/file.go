@@ -158,7 +158,7 @@ func (f *FileStorage) InitializeDefaultData() error {
 				SchoolName:     "北京中学",
 				SubjectId:      10,
 				SubjectName:    "数学组",
-				OneapiGroup:    "beijing_math_group",
+				GroupName:      "beijing_math_group",
 				PreferredModel: "gpt-4",
 			},
 			{
@@ -168,7 +168,7 @@ func (f *FileStorage) InitializeDefaultData() error {
 				SchoolName:     "北京中学",
 				SubjectId:      2,
 				SubjectName:    "语文组",
-				OneapiGroup:    "beijing_chinese_group",
+				GroupName:      "beijing_chinese_group",
 				PreferredModel: "gemini-pro",
 			},
 		}
