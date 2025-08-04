@@ -24,7 +24,7 @@ func (m *MockCoursewareClient) GetTeacherInfo(ctx context.Context, teacherId str
 	return args.Get(0).(*client.TeacherInfo), args.Error(1)
 }
 
-func (m *MockCoursewareClient) GetAllTeacherIds(ctx context.Context) ([]string, error) {
+func (m *MockCoursewareClient) GetTeacherIds(ctx context.Context) ([]string, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -84,6 +84,12 @@ func (m *MockRedisClient) Del(ctx context.Context, keys ...string) *redis.IntCmd
 func (m *MockRedisClient) Pipeline() redis.Pipeliner {
 	_ = m.Called()
 	return nil
+}
+
+func (m *MockRedisClient) Keys(ctx context.Context, pattern string) *redis.StringSliceCmd {
+	_ = m.Called(ctx, pattern)
+	// 返回空的结果
+	return redis.NewStringSliceResult([]string{}, nil)
 }
 
 // 确保MockRedisClient实现了RedisClient接口
