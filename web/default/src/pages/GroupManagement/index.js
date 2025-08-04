@@ -17,7 +17,7 @@ import {
   Card,
 } from 'semantic-ui-react';
 import { API, showError, showSuccess } from '../../helpers';
-import './GroupManagement.css';
+// 样式已内联化，移除CSS文件引用
 
 const GroupManagement = () => {
   const { t } = useTranslation();
@@ -157,38 +157,75 @@ const GroupManagement = () => {
   };
 
   return (
-    <div className='dashboard-container'>
-      <Card fluid className='chart-card'>
+    <div style={{
+      padding: '20px 24px 40px',
+      backgroundColor: '#ffffff',
+      marginTop: '-15px',
+      maxWidth: '1600px',
+      marginLeft: 'auto',
+      marginRight: 'auto'
+    }}>
+      <Card fluid style={{
+        height: '100%',
+        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+        border: 'none',
+        borderRadius: '16px',
+        padding: '8px'
+      }}>
         <Card.Content>
-          <Card.Header className='header'>{t('group.title')}</Card.Header>
+          <Card.Header style={{
+            color: '#2B3674',
+            fontSize: '1.2em',
+            marginBottom: '15px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontWeight: '600',
+            gap: '12px'
+          }}>{t('group.title')}</Card.Header>
 
       {/* 统计信息 */}
       <Grid columns={2} stackable style={{ marginBottom: '20px' }}>
         <Grid.Column>
-          <Statistic>
-            <Statistic.Value>{stats.totalGroups}</Statistic.Value>
-            <Statistic.Label>总用户组</Statistic.Label>
+          <Statistic style={{ textAlign: 'center' }}>
+            <Statistic.Value style={{
+              fontSize: '2em',
+              fontWeight: 'bold',
+              color: '#2185d0'
+            }}>{stats.totalGroups}</Statistic.Value>
+            <Statistic.Label style={{
+              color: '#767676',
+              fontSize: '0.9em'
+            }}>总用户组</Statistic.Label>
           </Statistic>
         </Grid.Column>
         <Grid.Column>
-          <Statistic>
-            <Statistic.Value>{stats.totalUsers}</Statistic.Value>
-            <Statistic.Label>总用户数</Statistic.Label>
+          <Statistic style={{ textAlign: 'center' }}>
+            <Statistic.Value style={{
+              fontSize: '2em',
+              fontWeight: 'bold',
+              color: '#2185d0'
+            }}>{stats.totalUsers}</Statistic.Value>
+            <Statistic.Label style={{
+              color: '#767676',
+              fontSize: '0.9em'
+            }}>总用户数</Statistic.Label>
           </Statistic>
         </Grid.Column>
       </Grid>
 
       <Segment>
-        <Button
-          primary
-          icon
-          labelPosition="left"
-          onClick={openCreateModal}
-          style={{ marginBottom: '20px' }}
-        >
-          <Icon name="plus" />
-          {t('group.buttons.add')}
-        </Button>
+        <div style={{ marginBottom: '20px' }}>
+          <Button
+            primary
+            icon
+            labelPosition="left"
+            onClick={openCreateModal}
+          >
+            <Icon name="plus" />
+            {t('group.buttons.add')}
+          </Button>
+        </div>
 
         <Table celled>
           <Table.Header>
@@ -216,7 +253,8 @@ const GroupManagement = () => {
                 <Table.Cell>{group.user_count || 0}</Table.Cell>
                 <Table.Cell>{renderGroupStatus(group)}</Table.Cell>
                 <Table.Cell>
-                  <Button.Group size="mini">
+                  <div style={{ display: 'flex', gap: '5px' }}>
+                    <Button.Group size="mini">
                     <Button
                       icon
                       onClick={() => openEditModal(group)}
@@ -224,19 +262,20 @@ const GroupManagement = () => {
                     >
                       <Icon name="edit" />
                     </Button>
-                    <Button
-                      icon
-                      negative
-                      onClick={() => {
-                        setEditingGroup(group);
-                        setConfirmOpen(true);
-                      }}
-                      title={t('group.buttons.delete')}
-                      disabled={group.user_count > 0}
-                    >
-                      <Icon name="trash" />
-                    </Button>
-                  </Button.Group>
+                                          <Button
+                        icon
+                        negative
+                        onClick={() => {
+                          setEditingGroup(group);
+                          setConfirmOpen(true);
+                        }}
+                        title={t('group.buttons.delete')}
+                        disabled={group.user_count > 0}
+                      >
+                        <Icon name="trash" />
+                      </Button>
+                    </Button.Group>
+                  </div>
                 </Table.Cell>
               </Table.Row>
             ))}

@@ -17,7 +17,7 @@ import {
   Progress,
 } from 'semantic-ui-react';
 import { API, showError, showSuccess } from '../../helpers';
-import './CoursewareIntegration.css';
+// 样式已内联化，移除CSS文件引用
 
 const CoursewareIntegration = () => {
   const { t } = useTranslation();
@@ -194,11 +194,32 @@ const CoursewareIntegration = () => {
   };
 
   return (
-    <Container>
-      <Header as="h2" icon textAlign="center">
-        <Icon name="cloud" circular />
-        <Header.Content>{t('courseware.title')}</Header.Content>
-      </Header>
+    <div style={{
+      padding: '20px 24px 40px',
+      backgroundColor: '#ffffff',
+      marginTop: '-15px',
+      maxWidth: '1600px',
+      marginLeft: 'auto',
+      marginRight: 'auto'
+    }}>
+      <Card fluid style={{
+        height: '100%',
+        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+        border: 'none',
+        borderRadius: '16px',
+        padding: '8px'
+      }}>
+        <Card.Content>
+          <Card.Header style={{
+            color: '#2B3674',
+            fontSize: '1.2em',
+            marginBottom: '15px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontWeight: '600',
+            gap: '12px'
+          }}>{t('courseware.title')}</Card.Header>
 
       {/* 状态概览 */}
       <Grid columns={4} stackable style={{ marginBottom: '20px' }}>
@@ -339,6 +360,9 @@ const CoursewareIntegration = () => {
         )}
       </Segment>
 
+        </Card.Content>
+      </Card>
+
       {/* 删除确认框 */}
       <Confirm
         open={confirmOpen}
@@ -349,7 +373,7 @@ const CoursewareIntegration = () => {
         cancelButton="取消"
         confirmButton="删除"
       />
-    </Container>
+    </div>
   );
 };
 

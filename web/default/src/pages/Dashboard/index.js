@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import axios from 'axios';
 import { API } from '../../helpers';
-import './Dashboard.css';
+// 样式已内联化，移除CSS文件引用
 
 // 在 Dashboard 组件内添加自定义配置
 const chartConfig = {
@@ -352,7 +352,14 @@ const Dashboard = () => {
   };
 
   return (
-    <div className='dashboard-container'>
+    <div style={{
+      padding: '20px 24px 40px',
+      backgroundColor: '#ffffff',
+      marginTop: '-15px',
+      maxWidth: '1600px',
+      marginLeft: 'auto',
+      marginRight: 'auto'
+    }}>
       {/* 系统状态概览 */}
       <Grid columns={5} stackable style={{ marginBottom: '20px' }}>
         <Grid.Column>
@@ -423,15 +430,35 @@ const Dashboard = () => {
       </Grid>
 
       {/* 三个并排的折线图 */}
-      <Grid columns={3} stackable className='charts-grid'>
+      <Grid columns={3} stackable style={{ marginBottom: '1rem' }}>
         <Grid.Column>
-          <Card fluid className='chart-card'>
+          <Card fluid style={{
+            height: '100%',
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+            border: 'none',
+            borderRadius: '16px',
+            padding: '8px'
+          }}>
             <Card.Content>
-              <Card.Header>
+              <Card.Header style={{
+                color: '#2B3674',
+                fontSize: '1.2em',
+                marginBottom: '15px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontWeight: '600',
+                gap: '12px'
+              }}>
                 {t('dashboard.charts.requests.title')}
                 {/* <span className='stat-value'>{summaryData.todayRequests}</span> */}
               </Card.Header>
-              <div className='chart-container'>
+              <div style={{
+                marginTop: '2px',
+                padding: '16px',
+                backgroundColor: 'white',
+                borderRadius: '12px'
+              }}>
                 <ResponsiveContainer
                   width='100%'
                   height={120}
@@ -479,15 +506,35 @@ const Dashboard = () => {
         </Grid.Column>
 
         <Grid.Column>
-          <Card fluid className='chart-card'>
+          <Card fluid style={{
+            height: '100%',
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+            border: 'none',
+            borderRadius: '16px',
+            padding: '8px'
+          }}>
             <Card.Content>
-              <Card.Header>
+              <Card.Header style={{
+                color: '#2B3674',
+                fontSize: '1.2em',
+                marginBottom: '15px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontWeight: '600',
+                gap: '12px'
+              }}>
                 {t('dashboard.charts.quota.title')}
                 {/* <span className='stat-value'>
                   ${summaryData.todayQuota.toFixed(3)}
                 </span> */}
               </Card.Header>
-              <div className='chart-container'>
+              <div style={{
+                marginTop: '2px',
+                padding: '16px',
+                backgroundColor: 'white',
+                borderRadius: '12px'
+              }}>
                 <ResponsiveContainer
                   width='100%'
                   height={120}
@@ -535,13 +582,33 @@ const Dashboard = () => {
         </Grid.Column>
 
         <Grid.Column>
-          <Card fluid className='chart-card'>
+          <Card fluid style={{
+            height: '100%',
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+            border: 'none',
+            borderRadius: '16px',
+            padding: '8px'
+          }}>
             <Card.Content>
-              <Card.Header>
+              <Card.Header style={{
+                color: '#2B3674',
+                fontSize: '1.2em',
+                marginBottom: '15px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontWeight: '600',
+                gap: '12px'
+              }}>
                 {t('dashboard.charts.tokens.title')}
                 {/* <span className='stat-value'>{summaryData.todayTokens}</span> */}
               </Card.Header>
-              <div className='chart-container'>
+              <div style={{
+                marginTop: '2px',
+                padding: '16px',
+                backgroundColor: 'white',
+                borderRadius: '12px'
+              }}>
                 <ResponsiveContainer
                   width='100%'
                   height={120}
@@ -590,10 +657,30 @@ const Dashboard = () => {
       </Grid>
 
       {/* 模型使用统计 */}
-      <Card fluid className='chart-card'>
+      <Card fluid style={{
+        height: '100%',
+        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+        border: 'none',
+        borderRadius: '16px',
+        padding: '8px'
+      }}>
         <Card.Content>
-          <Card.Header>{t('dashboard.statistics.title')}</Card.Header>
-          <div className='chart-container'>
+          <Card.Header style={{
+            color: '#2B3674',
+            fontSize: '1.2em',
+            marginBottom: '15px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            fontWeight: '600',
+            gap: '12px'
+          }}>{t('dashboard.statistics.title')}</Card.Header>
+          <div style={{
+            marginTop: '2px',
+            padding: '16px',
+            backgroundColor: 'white',
+            borderRadius: '12px'
+          }}>
             <ResponsiveContainer width='100%' height={300}>
               <BarChart data={modelData}>
                 <CartesianGrid
