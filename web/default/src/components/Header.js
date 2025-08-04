@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, Fragment } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserContext } from '../context/User';
 import { useTranslation } from 'react-i18next';
@@ -50,12 +50,7 @@ let headerButtons = [
     to: '/user',
     icon: 'user',
     admin: true,
-  },
-  {
-    name: 'header.group',
-    to: '/group',
-    icon: 'users',
-    admin: true,
+    hasDropdown: true,
   },
   {
     name: 'header.dashboard',
@@ -71,11 +66,7 @@ let headerButtons = [
     name: 'header.setting',
     to: '/setting',
     icon: 'setting',
-  },
-  {
-    name: 'header.about',
-    to: '/about',
-    icon: 'info circle',
+    hasDropdown: true,
   },
 ];
 
@@ -112,6 +103,7 @@ const Header = () => {
   const renderButtons = (isMobile) => {
     return headerButtons.map((button) => {
       if (button.admin && !isAdmin()) return <></>;
+      
       if (isMobile) {
         return (
           <Menu.Item
@@ -126,6 +118,97 @@ const Header = () => {
           </Menu.Item>
         );
       }
+
+      // 处理有下拉菜单的按钮
+      if (button.hasDropdown) {
+        if (button.name === 'header.user') {
+          return (
+            <Dropdown
+              key={button.name}
+              item
+              text={t(button.name)}
+              pointing
+              className='link item'
+              style={{
+                fontSize: '15px',
+                fontWeight: '400',
+                color: '#666',
+              }}
+            >
+              <Dropdown.Menu>
+                <Dropdown.Item
+                  as={Link}
+                  to={button.to}
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    color: '#666',
+                  }}
+                >
+                  <Icon name={button.icon} style={{ marginRight: '4px' }} />
+                  {t(button.name)}
+                </Dropdown.Item>
+                <Dropdown.Item
+                  as={Link}
+                  to='/group'
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    color: '#666',
+                  }}
+                >
+                  <Icon name='users' style={{ marginRight: '4px' }} />
+                  {t('header.group')}
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+          );
+        } else if (button.name === 'header.setting') {
+          return (
+            <Dropdown
+              key={button.name}
+              item
+              text={t(button.name)}
+              pointing
+              className='link item'
+              style={{
+                fontSize: '15px',
+                fontWeight: '400',
+                color: '#666',
+              }}
+            >
+              <Dropdown.Menu>
+                <Dropdown.Item
+                  as={Link}
+                  to={button.to}
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    color: '#666',
+                  }}
+                >
+                  <Icon name={button.icon} style={{ marginRight: '4px' }} />
+                  {t(button.name)}
+                </Dropdown.Item>
+                <Dropdown.Item
+                  as={Link}
+                  to='/about'
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    color: '#666',
+                  }}
+                >
+                  <Icon name='info circle' style={{ marginRight: '4px' }} />
+                  {t('header.about')}
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+          );
+        }
+      }
+
+      // 普通按钮
       return (
         <Menu.Item
           key={button.name}
@@ -194,20 +277,104 @@ const Header = () => {
         {showSidebar ? (
           <Segment style={{ marginTop: 0, borderTop: '0' }}>
             <Menu secondary vertical style={{ width: '100%', margin: 0 }}>
-              {renderButtons(true)}
-              <Menu.Item>
-                <Dropdown
-                  selection
-                  trigger={
-                    <Icon
-                      name='language'
-                      style={{ margin: 0, fontSize: '18px' }}
-                    />
+              {headerButtons.map((button) => {
+                if (button.admin && !isAdmin()) return <></>;
+                
+                if (button.hasDropdown) {
+                  if (button.name === 'header.user') {
+                    return (
+                      <Fragment key={button.name}>
+                        <Menu.Item
+                          onClick={() => {
+                            navigate(button.to);
+                            setShowSidebar(false);
+                          }}
+                          style={{ fontSize: '15px' }}
+                        >
+                          <Icon name={button.icon} style={{ marginRight: '4px' }} />
+                          {t(button.name)}
+                        </Menu.Item>
+                        <Menu.Item
+                          onClick={() => {
+                            navigate('/group');
+                            setShowSidebar(false);
+                          }}
+                          style={{ fontSize: '15px', paddingLeft: '20px' }}
+                        >
+                          <Icon name='users' style={{ marginRight: '4px' }} />
+                          {t('header.group')}
+                        </Menu.Item>
+                      </Fragment>
+                    );
+                  } else if (button.name === 'header.setting') {
+                    return (
+                      <Fragment key={button.name}>
+                        <Menu.Item
+                          onClick={() => {
+                            navigate(button.to);
+                            setShowSidebar(false);
+                          }}
+                          style={{ fontSize: '15px' }}
+                        >
+                          <Icon name={button.icon} style={{ marginRight: '4px' }} />
+                          {t(button.name)}
+                        </Menu.Item>
+                        <Menu.Item
+                          onClick={() => {
+                            navigate('/about');
+                            setShowSidebar(false);
+                          }}
+                          style={{ fontSize: '15px', paddingLeft: '20px' }}
+                        >
+                          <Icon name='info circle' style={{ marginRight: '4px' }} />
+                          {t('header.about')}
+                        </Menu.Item>
+                      </Fragment>
+                    );
                   }
-                  options={languageOptions}
-                  value={i18n.language}
-                  onChange={(_, { value }) => changeLanguage(value)}
-                />
+                }
+                
+                return (
+                  <Menu.Item
+                    key={button.name}
+                    onClick={() => {
+                      navigate(button.to);
+                      setShowSidebar(false);
+                    }}
+                    style={{ fontSize: '15px' }}
+                  >
+                    <Icon name={button.icon} style={{ marginRight: '4px' }} />
+                    {t(button.name)}
+                  </Menu.Item>
+                );
+              })}
+              <Menu.Item style={{ textAlign: 'center', padding: '10px' }}>
+                <Button.Group size='mini' compact>
+                  <Button
+                    basic={i18n.language !== 'zh'}
+                    color={i18n.language === 'zh' ? 'blue' : undefined}
+                    onClick={() => changeLanguage('zh')}
+                    style={{
+                      fontSize: '12px',
+                      padding: '6px 8px',
+                      minWidth: '40px'
+                    }}
+                  >
+                    中
+                  </Button>
+                  <Button
+                    basic={i18n.language !== 'en'}
+                    color={i18n.language === 'en' ? 'blue' : undefined}
+                    onClick={() => changeLanguage('en')}
+                    style={{
+                      fontSize: '12px',
+                      padding: '6px 8px',
+                      minWidth: '40px'
+                    }}
+                  >
+                    EN
+                  </Button>
+                </Button.Group>
               </Menu.Item>
               <Menu.Item>
                 {userState.user ? (
@@ -275,21 +442,34 @@ const Header = () => {
           </Menu.Item>
           {renderButtons(false)}
           <Menu.Menu position='right'>
-            <Dropdown
-              item
-              trigger={
-                <Icon name='language' style={{ margin: 0, fontSize: '18px' }} />
-              }
-              options={languageOptions}
-              value={i18n.language}
-              onChange={(_, { value }) => changeLanguage(value)}
-              style={{
-                fontSize: '16px',
-                fontWeight: '400',
-                color: '#666',
-                padding: '0 10px',
-              }}
-            />
+            <Menu.Item style={{ padding: '0 10px' }}>
+              <Button.Group size='mini' compact>
+                <Button
+                  basic={i18n.language !== 'zh'}
+                  color={i18n.language === 'zh' ? 'blue' : undefined}
+                  onClick={() => changeLanguage('zh')}
+                  style={{
+                    fontSize: '12px',
+                    padding: '6px 8px',
+                    minWidth: '40px'
+                  }}
+                >
+                  中
+                </Button>
+                <Button
+                  basic={i18n.language !== 'en'}
+                  color={i18n.language === 'en' ? 'blue' : undefined}
+                  onClick={() => changeLanguage('en')}
+                  style={{
+                    fontSize: '12px',
+                    padding: '6px 8px',
+                    minWidth: '40px'
+                  }}
+                >
+                  EN
+                </Button>
+              </Button.Group>
+            </Menu.Item>
             {userState.user ? (
               <Dropdown
                 text={userState.user.username}

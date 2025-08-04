@@ -432,11 +432,12 @@ const TokensTable = () => {
         />
       </Form>
 
-      <Table basic={'very'} compact size='small'>
+      <div style={{ overflowX: 'auto', marginTop: '10px' }}>
+        <Table basic={'very'} compact size='small' style={{ tableLayout: 'fixed', minWidth: '800px' }}>
         <Table.Header>
           <Table.Row>
             <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', width: '15%' }}
               onClick={() => {
                 sortToken('name');
               }}
@@ -444,7 +445,7 @@ const TokensTable = () => {
               {t('token.table.name')}
             </Table.HeaderCell>
             <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', width: '8%' }}
               onClick={() => {
                 sortToken('status');
               }}
@@ -452,7 +453,7 @@ const TokensTable = () => {
               {t('token.table.status')}
             </Table.HeaderCell>
             <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', width: '10%' }}
               onClick={() => {
                 sortToken('used_quota');
               }}
@@ -460,7 +461,7 @@ const TokensTable = () => {
               {t('token.table.used_quota')}
             </Table.HeaderCell>
             <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', width: '10%' }}
               onClick={() => {
                 sortToken('remain_quota');
               }}
@@ -468,7 +469,7 @@ const TokensTable = () => {
               {t('token.table.remain_quota')}
             </Table.HeaderCell>
             <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', width: '12%' }}
               onClick={() => {
                 sortToken('created_time');
               }}
@@ -476,15 +477,15 @@ const TokensTable = () => {
               {t('token.table.created_time')}
             </Table.HeaderCell>
             <Table.HeaderCell
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', width: '12%' }}
               onClick={() => {
                 sortToken('expired_time');
               }}
             >
               {t('token.table.expired_time')}
             </Table.HeaderCell>
-            <Table.HeaderCell>{t('token.table.user_group')}</Table.HeaderCell>
-            <Table.HeaderCell>{t('token.table.actions')}</Table.HeaderCell>
+            <Table.HeaderCell style={{ width: '13%' }}>{t('token.table.user_group')}</Table.HeaderCell>
+            <Table.HeaderCell style={{ width: '20%' }}>{t('token.table.actions')}</Table.HeaderCell>
           </Table.Row>
         </Table.Header>
 
@@ -515,79 +516,100 @@ const TokensTable = () => {
 
               return (
                 <Table.Row key={token.id}>
-                  <Table.Cell>
+                  <Table.Cell style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {token.name ? token.name : t('token.table.no_name')}
                   </Table.Cell>
-                  <Table.Cell>{renderStatus(token.status, t)}</Table.Cell>
-                  <Table.Cell>{renderQuota(token.used_quota, t)}</Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {renderStatus(token.status, t)}
+                  </Table.Cell>
+                  <Table.Cell style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {renderQuota(token.used_quota, t)}
+                  </Table.Cell>
+                  <Table.Cell style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {token.unlimited_quota
                       ? t('token.table.unlimited')
                       : renderQuota(token.remain_quota, t, 2)}
                   </Table.Cell>
-                  <Table.Cell>{renderTimestamp(token.created_time)}</Table.Cell>
-                  <Table.Cell>
+                  <Table.Cell style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {renderTimestamp(token.created_time)}
+                  </Table.Cell>
+                  <Table.Cell style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {token.expired_time === -1
                       ? t('token.table.never_expire')
                       : renderTimestamp(token.expired_time)}
                   </Table.Cell>
                   <Table.Cell>
-                    <Label basic color='blue'>
-                      {token.group || 'default'}
-                    </Label>
-                    <Button
-                      size='tiny'
-                      icon
-                      basic
-                      onClick={() => openGroupModal(token)}
-                      style={{ marginLeft: '5px' }}
-                    >
-                      <Icon name='edit' />
-                    </Button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexWrap: 'nowrap', minWidth: 0 }}>
+                      <Label basic color='blue' style={{ flexShrink: 1, minWidth: 0, maxWidth: '100%' }}>
+                        <span style={{ 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          whiteSpace: 'nowrap',
+                          display: 'block',
+                          maxWidth: '100%'
+                        }}>
+                          {token.group || 'default'}
+                        </span>
+                      </Label>
+                      <Button
+                        size='mini'
+                        icon
+                        basic
+                        compact
+                        onClick={() => openGroupModal(token)}
+                        style={{ flexShrink: 0, padding: '4px' }}
+                      >
+                        <Icon name='edit' />
+                      </Button>
+                    </div>
                   </Table.Cell>
                   <Table.Cell>
                     <div
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '4px',
+                        gap: '2px',
                         alignItems: 'flex-start',
                       }}
                     >
-                      <Button.Group color='green' size={'tiny'}>
-                        <Button
-                          size={'tiny'}
-                          positive
-                          onClick={async () => await onCopy('', token.key)}
-                        >
-                          {t('token.buttons.copy')}
-                        </Button>
-                        <Dropdown
-                          className='button icon'
-                          floating
-                          options={copyOptionsWithHandlers}
-                          trigger={<></>}
-                        />
-                      </Button.Group>
-                      <Button.Group color='olive' size={'tiny'}>
-                        <Button
-                          size={'tiny'}
-                          positive
-                          onClick={() => onOpenLink('', token.key)}
-                        >
-                          {t('token.buttons.chat')}
-                        </Button>
-                        <Dropdown
-                          className='button icon'
-                          floating
-                          options={openLinkOptionsWithHandlers}
-                          trigger={<></>}
-                        />
-                      </Button.Group>
-                      <div style={{ display: 'flex', gap: '4px' }}>
+                      <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap' }}>
+                        <Button.Group color='green' size={'mini'}>
+                          <Button
+                            size={'mini'}
+                            positive
+                            compact
+                            onClick={async () => await onCopy('', token.key)}
+                          >
+                            {t('token.buttons.copy')}
+                          </Button>
+                          <Dropdown
+                            className='button icon'
+                            floating
+                            options={copyOptionsWithHandlers}
+                            trigger={<></>}
+                          />
+                        </Button.Group>
+                        <Button.Group color='olive' size={'mini'}>
+                          <Button
+                            size={'mini'}
+                            positive
+                            compact
+                            onClick={() => onOpenLink('', token.key)}
+                          >
+                            {t('token.buttons.chat')}
+                          </Button>
+                          <Dropdown
+                            className='button icon'
+                            floating
+                            options={openLinkOptionsWithHandlers}
+                            trigger={<></>}
+                          />
+                        </Button.Group>
+                      </div>
+                      <div style={{ display: 'flex', gap: '2px', flexWrap: 'wrap' }}>
                         <Popup
                           trigger={
-                            <Button size='tiny' negative>
+                            <Button size='mini' negative compact>
                               {t('token.buttons.delete')}
                             </Button>
                           }
@@ -596,7 +618,7 @@ const TokensTable = () => {
                           hoverable
                         >
                           <Button
-                            size='tiny'
+                            size='mini'
                             negative
                             onClick={() => {
                               manageToken(token.id, 'delete', idx);
@@ -606,7 +628,8 @@ const TokensTable = () => {
                           </Button>
                         </Popup>
                         <Button
-                          size='tiny'
+                          size='mini'
+                          compact
                           onClick={() => {
                             manageToken(
                               token.id,
@@ -620,7 +643,8 @@ const TokensTable = () => {
                             : t('token.buttons.enable')}
                         </Button>
                         <Button
-                          size='tiny'
+                          size='mini'
+                          compact
                           as={Link}
                           to={'/token/edit/' + token.id}
                         >
@@ -678,6 +702,7 @@ const TokensTable = () => {
           </Table.Row>
         </Table.Footer>
       </Table>
+      </div>
 
       {/* 用户组修改模态框 */}
       <Modal
