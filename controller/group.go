@@ -22,9 +22,31 @@ type GroupInfo struct {
 
 func GetGroups(c *gin.Context) {
 	groupNames := make([]string, 0)
+
+	// 首先获取预定义的用户组
 	for groupName := range billingratio.GroupRatio {
 		groupNames = append(groupNames, groupName)
 	}
+
+	// 然后从数据库中获取所有用户组（包括新创建的）
+	var dbGroups []string
+	model.DB.Model(&model.User{}).
+		Where("`group` != '' AND `group` IS NOT NULL").
+		Distinct().
+		Pluck("`group`", &dbGroups)
+
+	// 合并并去重
+	groupMap := make(map[string]bool)
+	for _, name := range groupNames {
+		groupMap[name] = true
+	}
+	for _, name := range dbGroups {
+		if name != "" && !groupMap[name] {
+			groupNames = append(groupNames, name)
+			groupMap[name] = true
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
