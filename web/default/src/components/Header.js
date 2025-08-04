@@ -58,12 +58,6 @@ let headerButtons = [
     admin: true,
   },
   {
-    name: 'header.courseware',
-    to: '/courseware',
-    icon: 'cloud',
-    admin: true,
-  },
-  {
     name: 'header.dashboard',
     to: '/dashboard',
     icon: 'chart bar',
