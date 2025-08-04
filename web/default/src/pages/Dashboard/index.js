@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {useTranslation} from 'react-i18next';
-import {Card, Grid} from 'semantic-ui-react';
+import {Card, Grid, Statistic, Segment, Label, Icon, Table, Message} from 'semantic-ui-react';
 import {
   Bar,
   BarChart,
@@ -12,8 +12,12 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  PieChart,
+  Pie,
+  Cell,
 } from 'recharts';
 import axios from 'axios';
+import { API } from '../../helpers';
 import './Dashboard.css';
 
 // 在 Dashboard 组件内添加自定义配置
@@ -61,9 +65,27 @@ const Dashboard = () => {
     todayQuota: 0,
     todayTokens: 0,
   });
+  
+  const [systemStats, setSystemStats] = useState({
+    totalUsers: 0,
+    totalTokens: 0,
+    totalChannels: 0,
+    activeChannels: 0,
+    totalGroups: 0,
+  });
+  
+  const [channelStats, setChannelStats] = useState([]);
+  const [recentLogs, setRecentLogs] = useState([]);
+  const [systemStatus, setSystemStatus] = useState({
+    status: 'healthy',
+    message: '系统运行正常',
+  });
 
   useEffect(() => {
     fetchDashboardData();
+    fetchSystemStats();
+    fetchChannelStats();
+    fetchRecentLogs();
   }, []);
 
   const fetchDashboardData = async () => {
@@ -78,6 +100,64 @@ const Dashboard = () => {
       console.error('Failed to fetch dashboard data:', error);
       setData([]);
       calculateSummary([]);
+    }
+  };
+
+  const fetchSystemStats = async () => {
+    try {
+      const [usersRes, tokensRes, channelsRes, groupsRes] = await Promise.all([
+        API.get('/api/user'),
+        API.get('/api/token'),
+        API.get('/api/channel'),
+        API.get('/api/group/detail'),
+      ]);
+
+      const totalUsers = usersRes.data.success ? usersRes.data.data.length : 0;
+      const totalTokens = tokensRes.data.success ? tokensRes.data.data.length : 0;
+      const totalChannels = channelsRes.data.success ? channelsRes.data.data.length : 0;
+      const activeChannels = channelsRes.data.success ? 
+        channelsRes.data.data.filter(ch => ch.status === 1).length : 0;
+      const totalGroups = groupsRes.data.success ? groupsRes.data.data.length : 0;
+
+      setSystemStats({
+        totalUsers,
+        totalTokens,
+        totalChannels,
+        activeChannels,
+        totalGroups,
+      });
+    } catch (error) {
+      console.error('Failed to fetch system stats:', error);
+    }
+  };
+
+  const fetchChannelStats = async () => {
+    try {
+      const response = await API.get('/api/channel');
+      if (response.data.success) {
+        const channels = response.data.data || [];
+        const channelStatsData = channels.map(channel => ({
+          name: channel.name || 'Unknown',
+          type: channel.type,
+          status: channel.status,
+          balance: channel.balance || 0,
+          responseTime: channel.response_time || 0,
+        }));
+        setChannelStats(channelStatsData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch channel stats:', error);
+    }
+  };
+
+  const fetchRecentLogs = async () => {
+    try {
+      const response = await API.get('/api/log?p=1&size=10');
+      if (response.data.success) {
+        setRecentLogs(response.data.data || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch recent logs:', error);
     }
   };
 
@@ -208,6 +288,44 @@ const Dashboard = () => {
     return chartConfig.barColors[index % chartConfig.barColors.length];
   };
 
+  // 获取渠道状态标签
+  const getChannelStatusLabel = (status) => {
+    switch (status) {
+      case 1:
+        return <Label color="green">已启用</Label>;
+      case 2:
+        return <Label color="red">已禁用</Label>;
+      default:
+        return <Label color="grey">未知</Label>;
+    }
+  };
+
+  // 获取渠道类型颜色
+  const getChannelTypeColor = (type) => {
+    const typeColors = {
+      'openai': 'blue',
+      'anthropic': 'purple',
+      'google': 'red',
+      'azure': 'teal',
+      'baidu': 'orange',
+      'ali': 'green',
+      'default': 'grey',
+    };
+    return typeColors[type] || typeColors.default;
+  };
+
+  // 处理渠道数据用于饼图
+  const processChannelDataForPie = () => {
+    const typeCount = {};
+    channelStats.forEach(channel => {
+      typeCount[channel.type] = (typeCount[channel.type] || 0) + 1;
+    });
+    return Object.entries(typeCount).map(([type, count]) => ({
+      name: type,
+      value: count,
+    }));
+  };
+
   // 添加一个日期格式化函数
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
@@ -235,6 +353,75 @@ const Dashboard = () => {
 
   return (
     <div className='dashboard-container'>
+      {/* 系统状态概览 */}
+      <Grid columns={5} stackable style={{ marginBottom: '20px' }}>
+        <Grid.Column>
+          <Card fluid>
+            <Card.Content textAlign="center">
+              <Statistic>
+                <Statistic.Value>
+                  <Icon name="users" color="blue" />
+                  {systemStats.totalUsers}
+                </Statistic.Value>
+                <Statistic.Label>总用户数</Statistic.Label>
+              </Statistic>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+        <Grid.Column>
+          <Card fluid>
+            <Card.Content textAlign="center">
+              <Statistic>
+                <Statistic.Value>
+                  <Icon name="key" color="green" />
+                  {systemStats.totalTokens}
+                </Statistic.Value>
+                <Statistic.Label>总令牌数</Statistic.Label>
+              </Statistic>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+        <Grid.Column>
+          <Card fluid>
+            <Card.Content textAlign="center">
+              <Statistic>
+                <Statistic.Value>
+                  <Icon name="sitemap" color="purple" />
+                  {systemStats.totalChannels}
+                </Statistic.Value>
+                <Statistic.Label>总渠道数</Statistic.Label>
+              </Statistic>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+        <Grid.Column>
+          <Card fluid>
+            <Card.Content textAlign="center">
+              <Statistic>
+                <Statistic.Value>
+                  <Icon name="check circle" color="teal" />
+                  {systemStats.activeChannels}
+                </Statistic.Value>
+                <Statistic.Label>活跃渠道</Statistic.Label>
+              </Statistic>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+        <Grid.Column>
+          <Card fluid>
+            <Card.Content textAlign="center">
+              <Statistic>
+                <Statistic.Value>
+                  <Icon name="users" color="orange" />
+                  {systemStats.totalGroups}
+                </Statistic.Value>
+                <Statistic.Label>用户组数</Statistic.Label>
+              </Statistic>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+      </Grid>
+
       {/* 三个并排的折线图 */}
       <Grid columns={3} stackable className='charts-grid'>
         <Grid.Column>
@@ -451,6 +638,96 @@ const Dashboard = () => {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        </Card.Content>
+      </Card>
+
+      {/* 渠道统计和最近日志 */}
+      <Grid columns={2} stackable style={{ marginTop: '20px' }}>
+        <Grid.Column>
+          <Card fluid>
+            <Card.Content>
+              <Card.Header>渠道类型分布</Card.Header>
+              <div style={{ height: '300px' }}>
+                <ResponsiveContainer width='100%' height='100%'>
+                  <PieChart>
+                    <Pie
+                      data={processChannelDataForPie()}
+                      cx='50%'
+                      cy='50%'
+                      labelLine={false}
+                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                      outerRadius={80}
+                      fill='#8884d8'
+                      dataKey='value'
+                    >
+                      {processChannelDataForPie().map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={getRandomColor(index)} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+        <Grid.Column>
+          <Card fluid>
+            <Card.Content>
+              <Card.Header>最近系统日志</Card.Header>
+              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                {recentLogs.length > 0 ? (
+                  recentLogs.map((log, index) => (
+                    <Segment key={index} size='mini' style={{ margin: '5px 0' }}>
+                      <div style={{ fontSize: '12px', color: '#666' }}>
+                        {new Date(log.created_at).toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: '14px', marginTop: '5px' }}>
+                        {log.content}
+                      </div>
+                    </Segment>
+                  ))
+                ) : (
+                  <Message info size='mini'>
+                    暂无日志记录
+                  </Message>
+                )}
+              </div>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+      </Grid>
+
+      {/* 渠道状态表格 */}
+      <Card fluid style={{ marginTop: '20px' }}>
+        <Card.Content>
+          <Card.Header>渠道状态概览</Card.Header>
+          <Table celled compact>
+            <Table.Header>
+              <Table.Row>
+                <Table.HeaderCell>渠道名称</Table.HeaderCell>
+                <Table.HeaderCell>类型</Table.HeaderCell>
+                <Table.HeaderCell>状态</Table.HeaderCell>
+                <Table.HeaderCell>余额</Table.HeaderCell>
+                <Table.HeaderCell>响应时间</Table.HeaderCell>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              {channelStats.map((channel, index) => (
+                <Table.Row key={index}>
+                  <Table.Cell>{channel.name}</Table.Cell>
+                  <Table.Cell>
+                    <Label color={getChannelTypeColor(channel.type)}>
+                      {channel.type}
+                    </Label>
+                  </Table.Cell>
+                  <Table.Cell>{getChannelStatusLabel(channel.status)}</Table.Cell>
+                  <Table.Cell>${channel.balance.toFixed(2)}</Table.Cell>
+                  <Table.Cell>{channel.responseTime}ms</Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table>
         </Card.Content>
       </Card>
     </div>

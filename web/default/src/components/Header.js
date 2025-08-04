@@ -24,6 +24,11 @@ import '../index.css';
 // Header Buttons
 let headerButtons = [
   {
+    name: 'header.dashboard',
+    to: '/dashboard',
+    icon: 'chart bar',
+  },
+  {
     name: 'header.channel',
     to: '/channel',
     icon: 'sitemap',
@@ -39,11 +44,7 @@ let headerButtons = [
     to: '/redemption',
     icon: 'dollar sign',
     admin: true,
-  },
-  {
-    name: 'header.topup',
-    to: '/topup',
-    icon: 'cart',
+    hasDropdown: true,
   },
   {
     name: 'header.user',
@@ -51,11 +52,6 @@ let headerButtons = [
     icon: 'user',
     admin: true,
     hasDropdown: true,
-  },
-  {
-    name: 'header.dashboard',
-    to: '/dashboard',
-    icon: 'chart bar',
   },
   {
     name: 'header.log',
@@ -121,7 +117,49 @@ const Header = () => {
 
       // 处理有下拉菜单的按钮
       if (button.hasDropdown) {
-        if (button.name === 'header.user') {
+        if (button.name === 'header.redemption') {
+          return (
+            <Dropdown
+              key={button.name}
+              item
+              text={t(button.name)}
+              pointing
+              className='link item'
+              style={{
+                fontSize: '15px',
+                fontWeight: '400',
+                color: '#666',
+              }}
+            >
+              <Dropdown.Menu>
+                <Dropdown.Item
+                  as={Link}
+                  to={button.to}
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    color: '#666',
+                  }}
+                >
+                  <Icon name={button.icon} style={{ marginRight: '4px' }} />
+                  {t(button.name)}
+                </Dropdown.Item>
+                <Dropdown.Item
+                  as={Link}
+                  to='/topup'
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    color: '#666',
+                  }}
+                >
+                  <Icon name='cart' style={{ marginRight: '4px' }} />
+                  {t('header.topup')}
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+          );
+        } else if (button.name === 'header.user') {
           return (
             <Dropdown
               key={button.name}
@@ -281,7 +319,32 @@ const Header = () => {
                 if (button.admin && !isAdmin()) return <></>;
                 
                 if (button.hasDropdown) {
-                  if (button.name === 'header.user') {
+                  if (button.name === 'header.redemption') {
+                    return (
+                      <Fragment key={button.name}>
+                        <Menu.Item
+                          onClick={() => {
+                            navigate(button.to);
+                            setShowSidebar(false);
+                          }}
+                          style={{ fontSize: '15px' }}
+                        >
+                          <Icon name={button.icon} style={{ marginRight: '4px' }} />
+                          {t(button.name)}
+                        </Menu.Item>
+                        <Menu.Item
+                          onClick={() => {
+                            navigate('/topup');
+                            setShowSidebar(false);
+                          }}
+                          style={{ fontSize: '15px', paddingLeft: '20px' }}
+                        >
+                          <Icon name='cart' style={{ marginRight: '4px' }} />
+                          {t('header.topup')}
+                        </Menu.Item>
+                      </Fragment>
+                    );
+                  } else if (button.name === 'header.user') {
                     return (
                       <Fragment key={button.name}>
                         <Menu.Item

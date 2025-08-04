@@ -14,6 +14,7 @@ import {
   Label,
   Grid,
   Statistic,
+  Card,
 } from 'semantic-ui-react';
 import { API, showError, showSuccess } from '../../helpers';
 import './GroupManagement.css';
@@ -156,11 +157,10 @@ const GroupManagement = () => {
   };
 
   return (
-    <Container>
-      <Header as="h2" icon textAlign="center">
-        <Icon name="users" circular />
-        <Header.Content>{t('group.title')}</Header.Content>
-      </Header>
+    <div className='dashboard-container'>
+      <Card fluid className='chart-card'>
+        <Card.Content>
+          <Card.Header className='header'>{t('group.title')}</Card.Header>
 
       {/* 统计信息 */}
       <Grid columns={2} stackable style={{ marginBottom: '20px' }}>
@@ -250,6 +250,8 @@ const GroupManagement = () => {
           </Message>
         )}
       </Segment>
+        </Card.Content>
+      </Card>
 
       {/* 创建/编辑模态框 */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} size="small">
@@ -297,7 +299,7 @@ const GroupManagement = () => {
         cancelButton={t('common.cancel')}
         confirmButton={t('common.delete')}
       />
-    </Container>
+    </div>
   );
 };
 
