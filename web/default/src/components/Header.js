@@ -1,4 +1,4 @@
-import React, { useContext, useState, Fragment } from 'react';
+import React, { useContext, useState, Fragment, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserContext } from '../context/User';
 import { useTranslation } from 'react-i18next';
@@ -80,8 +80,24 @@ const Header = () => {
   let navigate = useNavigate();
 
   const [showSidebar, setShowSidebar] = useState(false);
+  const [currentLanguage, setCurrentLanguage] = useState(() => {
+    // 直接使用localStorage的值，不依赖i18n状态
+    const savedLanguage = localStorage.getItem('i18nextLng');
+    const language = savedLanguage || 'zh';
+    console.log('Header: State initialization', { savedLanguage, finalLanguage: language });
+    return language;
+  });
   const systemName = getSystemName();
   const logo = getLogo();
+
+  // 监听localStorage变化，确保状态同步
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem('i18nextLng');
+    if (savedLanguage && savedLanguage !== currentLanguage) {
+      console.log('Header: Syncing localStorage language', { from: currentLanguage, to: savedLanguage });
+      setCurrentLanguage(savedLanguage);
+    }
+  }, [currentLanguage]);
 
   async function logout() {
     setShowSidebar(false);
@@ -272,7 +288,11 @@ const Header = () => {
   ];
 
   const changeLanguage = (language) => {
+    console.log('Header: Changing language', { from: currentLanguage, to: language });
     i18n.changeLanguage(language);
+    setCurrentLanguage(language);
+    // 确保localStorage也更新
+    localStorage.setItem('i18nextLng', language);
   };
 
   if (isMobile()) {
@@ -414,8 +434,8 @@ const Header = () => {
               <Menu.Item style={{ textAlign: 'center', padding: '10px' }}>
                 <Button.Group size='mini' compact>
                   <Button
-                    basic={i18n.language !== 'zh'}
-                    color={i18n.language === 'zh' ? 'blue' : undefined}
+                    basic={currentLanguage !== 'zh'}
+                    color={currentLanguage === 'zh' ? 'blue' : undefined}
                     onClick={() => changeLanguage('zh')}
                     style={{
                       fontSize: '12px',
@@ -426,8 +446,8 @@ const Header = () => {
                     中
                   </Button>
                   <Button
-                    basic={i18n.language !== 'en'}
-                    color={i18n.language === 'en' ? 'blue' : undefined}
+                    basic={currentLanguage !== 'en'}
+                    color={currentLanguage === 'en' ? 'blue' : undefined}
                     onClick={() => changeLanguage('en')}
                     style={{
                       fontSize: '12px',
@@ -508,8 +528,8 @@ const Header = () => {
             <Menu.Item style={{ padding: '0 10px' }}>
               <Button.Group size='mini' compact>
                 <Button
-                  basic={i18n.language !== 'zh'}
-                  color={i18n.language === 'zh' ? 'blue' : undefined}
+                  basic={currentLanguage !== 'zh'}
+                  color={currentLanguage === 'zh' ? 'blue' : undefined}
                   onClick={() => changeLanguage('zh')}
                   style={{
                     fontSize: '12px',
@@ -520,8 +540,8 @@ const Header = () => {
                   中
                 </Button>
                 <Button
-                  basic={i18n.language !== 'en'}
-                  color={i18n.language === 'en' ? 'blue' : undefined}
+                  basic={currentLanguage !== 'en'}
+                  color={currentLanguage === 'en' ? 'blue' : undefined}
                   onClick={() => changeLanguage('en')}
                   style={{
                     fontSize: '12px',

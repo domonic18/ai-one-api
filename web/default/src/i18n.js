@@ -9,20 +9,28 @@ i18n
   .use(initReactI18next)
   .init({
     fallbackLng: 'zh',
+    lng: 'zh', // 明确设置默认语言
     debug: process.env.NODE_ENV === 'development',
 
     interpolation: {
       escapeValue: false,
     },
 
-      resources: {
-          zh: {
-              translation: zhTranslation
-          },
-          en: {
-              translation: enTranslation
-          }
-      }
+    detection: {
+      // 语言检测器配置
+      order: ['localStorage', 'navigator', 'htmlTag'],
+      caches: ['localStorage'],
+      lookupLocalStorage: 'i18nextLng',
+    },
+
+    resources: {
+        zh: {
+            translation: zhTranslation
+        },
+        en: {
+            translation: enTranslation
+        }
+    }
   });
 
 export default i18n;
