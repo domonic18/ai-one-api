@@ -103,7 +103,6 @@ const GroupManagement = () => {
 
   const handleDelete = async () => {
     try {
-      console.log('Deleting group:', editingGroup); // 调试信息
       const response = await API.delete(`/api/group/${editingGroup.id}`);
       if (response.data.success) {
         showSuccess('用户组删除成功');

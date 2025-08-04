@@ -409,7 +409,7 @@ const TokensTable = () => {
   };
 
   useEffect(() => {
-    loadTokens(0, orderBy)
+    loadTokens(0)
       .then()
       .catch((reason) => {
         showError(reason);
