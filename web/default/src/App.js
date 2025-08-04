@@ -28,6 +28,7 @@ import LarkOAuth from './components/LarkOAuth';
 import Dashboard from './pages/Dashboard';
 import GroupManagement from './pages/GroupManagement';
 import CoursewareIntegration from './pages/CoursewareIntegration';
+import ExtendedLogs from './pages/ExtendedLogs';
 
 const Home = lazy(() => import('./pages/Home'));
 const About = lazy(() => import('./pages/About'));
@@ -281,6 +282,14 @@ function App() {
         element={
           <PrivateRoute>
             <Log />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path='/extended-logs'
+        element={
+          <PrivateRoute>
+            <ExtendedLogs />
           </PrivateRoute>
         }
       />

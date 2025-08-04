@@ -59,6 +59,12 @@ let headerButtons = [
     icon: 'book',
   },
   {
+    name: 'header.extended_log',
+    to: '/extended-logs',
+    icon: 'list alternate',
+    admin: true,
+  },
+  {
     name: 'header.setting',
     to: '/setting',
     icon: 'setting',
