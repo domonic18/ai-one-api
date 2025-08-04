@@ -28,5 +28,15 @@
     "subject_name": "AI组",
     "group_name": "beijing_math_group",
     "preferred_model": "deepseek-chat"
+  },
+  {
+    "teacher_id": "29be822a-b330-47f3-8dbf-90dab7c3c188",
+    "teacher_name": "dongming",
+    "school_id": 3,
+    "school_name": "光华学校",
+    "subject_id": 33,
+    "subject_name": "AI测试组",
+    "group_name": "beijing_ai_group",
+    "preferred_model": "deepseek-chat"
   }
 ]

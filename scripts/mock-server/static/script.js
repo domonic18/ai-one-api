@@ -167,11 +167,12 @@ async function loadConfig() {
         const response = await fetch('/web/config');
         const config = await response.json();
         
-        document.getElementById('serverPort').value = config.server.port;
-        document.getElementById('serverHost').value = config.server.host;
-        document.getElementById('apiKey').value = config.api.api_key;
-        document.getElementById('responseDelay').value = config.api.response_delay;
-        document.getElementById('errorRate').value = config.api.error_rate;
+        // 修复配置字段映射，确保与后端结构一致
+        document.getElementById('serverPort').value = config.server?.port || 8080;
+        document.getElementById('serverHost').value = config.server?.host || '0.0.0.0';
+        document.getElementById('apiKey').value = config.api?.api_key || 'mock_api_key_123';
+        document.getElementById('responseDelay').value = config.api?.response_delay || '0ms';
+        document.getElementById('errorRate').value = config.api?.error_rate || 0;
     } catch (error) {
         showMessage('加载配置失败: ' + error.message, 'error');
     }
@@ -183,11 +184,15 @@ document.getElementById('configForm').addEventListener('submit', async function(
     
     const formData = new FormData(this);
     const configData = {
-        port: parseInt(formData.get('port')),
-        host: formData.get('host'),
-        api_key: formData.get('apiKey'),
-        response_delay: formData.get('responseDelay'),
-        error_rate: parseFloat(formData.get('errorRate'))
+        server: {
+            port: parseInt(formData.get('port')),
+            host: formData.get('host')
+        },
+        api: {
+            api_key: formData.get('apiKey'),
+            response_delay: formData.get('responseDelay'),
+            error_rate: parseFloat(formData.get('errorRate'))
+        }
     };
     
     try {

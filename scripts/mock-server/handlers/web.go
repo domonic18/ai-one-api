@@ -132,11 +132,12 @@ func UpdateConfig(c *gin.Context) {
 		config = &models.ServerConfig{}
 	}
 
-	config.Server.Port = webConfig.Port
-	config.Server.Host = webConfig.Host
-	config.API.ResponseDelay = webConfig.ResponseDelay
-	config.API.ErrorRate = webConfig.ErrorRate
-	config.API.APIKey = webConfig.APIKey
+	// 修复字段映射，使用嵌套结构
+	config.Server.Port = webConfig.Server.Port
+	config.Server.Host = webConfig.Server.Host
+	config.API.ResponseDelay = webConfig.API.ResponseDelay
+	config.API.ErrorRate = webConfig.API.ErrorRate
+	config.API.APIKey = webConfig.API.APIKey
 
 	memoryStorage.SetConfig(config)
 

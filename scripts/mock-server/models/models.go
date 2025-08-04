@@ -47,16 +47,22 @@ type BatchTeacherResponse struct {
 
 // ServerConfig 服务器配置结构体
 type ServerConfig struct {
-	Server struct {
-		Port int    `json:"port"`
-		Host string `json:"host"`
-	} `json:"server"`
-	API struct {
-		ResponseDelay string  `json:"response_delay"`
-		ErrorRate     float64 `json:"error_rate"`
-		APIKey        string  `json:"api_key"`
-	} `json:"api"`
+	Server       ServerInfo     `json:"server"`
+	API          APIInfo        `json:"api"`
 	DefaultUsers []*TeacherInfo `json:"default_users"`
+}
+
+// ServerInfo 服务器信息结构体
+type ServerInfo struct {
+	Port int    `json:"port"`
+	Host string `json:"host"`
+}
+
+// APIInfo API信息结构体
+type APIInfo struct {
+	ResponseDelay string  `json:"response_delay"`
+	ErrorRate     float64 `json:"error_rate"`
+	APIKey        string  `json:"api_key"`
 }
 
 // WebUser 用于Web界面的用户结构体
@@ -73,9 +79,6 @@ type WebUser struct {
 
 // WebConfig 用于Web界面的配置结构体
 type WebConfig struct {
-	ResponseDelay string  `json:"response_delay" form:"response_delay"`
-	ErrorRate     float64 `json:"error_rate" form:"error_rate"`
-	APIKey        string  `json:"api_key" form:"api_key"`
-	Port          int     `json:"port" form:"port"`
-	Host          string  `json:"host" form:"host"`
+	Server ServerInfo `json:"server" form:"server"`
+	API    APIInfo    `json:"api" form:"api"`
 }

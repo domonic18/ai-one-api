@@ -89,18 +89,11 @@ func (f *FileStorage) LoadConfig() (*models.ServerConfig, error) {
 		}
 
 		return &models.ServerConfig{
-			Server: struct {
-				Port int    `json:"port"`
-				Host string `json:"host"`
-			}{
+			Server: models.ServerInfo{
 				Port: 8080,
 				Host: "0.0.0.0",
 			},
-			API: struct {
-				ResponseDelay string  `json:"response_delay"`
-				ErrorRate     float64 `json:"error_rate"`
-				APIKey        string  `json:"api_key"`
-			}{
+			API: models.APIInfo{
 				ResponseDelay: "0ms",
 				ErrorRate:     0.0,
 				APIKey:        apiKey,
@@ -188,18 +181,11 @@ func (f *FileStorage) InitializeDefaultData() error {
 		}
 
 		defaultConfig := &models.ServerConfig{
-			Server: struct {
-				Port int    `json:"port"`
-				Host string `json:"host"`
-			}{
+			Server: models.ServerInfo{
 				Port: 8080,
 				Host: "0.0.0.0",
 			},
-			API: struct {
-				ResponseDelay string  `json:"response_delay"`
-				ErrorRate     float64 `json:"error_rate"`
-				APIKey        string  `json:"api_key"`
-			}{
+			API: models.APIInfo{
 				ResponseDelay: "0ms",
 				ErrorRate:     0.0,
 				APIKey:        apiKey,
