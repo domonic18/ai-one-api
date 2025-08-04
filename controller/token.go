@@ -2,15 +2,18 @@ package controller
 
 import (
 	"fmt"
+	"net/http"
+	"strconv"
+
 	"github.com/gin-gonic/gin"
+	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/common/ctxkey"
 	"github.com/songquanpeng/one-api/common/helper"
 	"github.com/songquanpeng/one-api/common/network"
 	"github.com/songquanpeng/one-api/common/random"
 	"github.com/songquanpeng/one-api/model"
-	"net/http"
-	"strconv"
+	billingratio "github.com/songquanpeng/one-api/relay/billing/ratio"
 )
 
 func GetAllTokens(c *gin.Context) {
@@ -254,4 +257,92 @@ func UpdateToken(c *gin.Context) {
 		"data":    cleanToken,
 	})
 	return
+}
+
+// UpdateTokenGroup 修改令牌的用户组
+func UpdateTokenGroup(c *gin.Context) {
+	tokenId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的令牌ID",
+		})
+		return
+	}
+
+	var req struct {
+		Group string `json:"group" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 验证用户组是否存在
+	if req.Group != "default" {
+		// 检查用户组是否存在
+		exists := false
+		for groupName := range billingratio.GroupRatio {
+			if groupName == req.Group {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			// 检查数据库中是否存在该用户组
+			var count int64
+			model.DB.Model(&model.User{}).Where("`group` = ?", req.Group).Count(&count)
+			if count == 0 {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("用户组 '%s' 不存在", req.Group),
+				})
+				return
+			}
+		}
+	}
+
+	// 获取令牌
+	token, err := model.GetTokenById(tokenId)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "令牌不存在",
+		})
+		return
+	}
+
+	// 检查权限（只能修改自己的令牌）
+	userId := c.GetInt(ctxkey.Id)
+	if token.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限修改此令牌",
+		})
+		return
+	}
+
+	// 更新令牌的分组
+	token.Group = req.Group
+	err = token.Update()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "更新令牌分组失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 清除相关缓存
+	if common.RedisEnabled {
+		common.RedisDel(fmt.Sprintf("token:%s", token.Key))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": fmt.Sprintf("令牌用户组已更新为 '%s'", req.Group),
+	})
 }
