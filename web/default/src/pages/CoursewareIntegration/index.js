@@ -80,10 +80,12 @@ const CoursewareIntegration = () => {
       setLoading(true);
       const response = await API.get('/api/courseware/cache');
       if (response.data.success) {
-        setCacheData(response.data.data || []);
+        // 修复：从 response.data.data.items 获取数组数据
+        setCacheData(response.data.data?.items || []);
       }
     } catch (error) {
       console.error('加载缓存数据失败:', error);
+      setCacheData([]); // 确保在错误时设置为空数组
     } finally {
       setLoading(false);
     }
@@ -299,14 +301,14 @@ const CoursewareIntegration = () => {
           </Table.Header>
 
           <Table.Body>
-            {cacheData.map((item) => (
+            {Array.isArray(cacheData) && cacheData.map((item) => (
               <Table.Row key={item.teacher_id}>
                 <Table.Cell>{item.teacher_id}</Table.Cell>
                 <Table.Cell>{item.group_name}</Table.Cell>
                 <Table.Cell>{item.preferred_model || '-'}</Table.Cell>
                 <Table.Cell>{item.school_name || '-'}</Table.Cell>
                 <Table.Cell>{item.subject_name || '-'}</Table.Cell>
-                <Table.Cell>{new Date(item.updated_at * 1000).toLocaleString()}</Table.Cell>
+                <Table.Cell>{new Date(item.cache_time * 1000).toLocaleString()}</Table.Cell>
                 <Table.Cell>
                   <Button.Group size="mini">
                     <Button
@@ -326,7 +328,7 @@ const CoursewareIntegration = () => {
           </Table.Body>
         </Table>
 
-        {cacheData.length === 0 && !loading && (
+        {(!Array.isArray(cacheData) || cacheData.length === 0) && !loading && (
           <Message info>
             <Message.Header>暂无缓存数据</Message.Header>
             <p>点击"同步用户"按钮开始同步数据</p>

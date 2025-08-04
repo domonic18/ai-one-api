@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -14,7 +15,7 @@ import (
 // CoursewareAPIClient 课件平台API客户端接口
 type CoursewareAPIClient interface {
 	GetTeacherInfo(ctx context.Context, teacherId string) (*client.TeacherInfo, error)
-	GetAllTeacherIds(ctx context.Context) ([]string, error)
+	GetTeacherIds(ctx context.Context) ([]string, error)
 	BatchGetUserInfo(ctx context.Context, teacherIds []string) ([]*client.TeacherInfo, error)
 }
 
@@ -24,14 +25,16 @@ type RedisClient interface {
 	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) *redis.StatusCmd
 	Del(ctx context.Context, keys ...string) *redis.IntCmd
 	Pipeline() redis.Pipeliner
+	Keys(ctx context.Context, pattern string) *redis.StringSliceCmd
 }
 
 // CoursewareIdentityResolver 课件平台身份解析器
 // 实现Redis缓存和预加载机制
 type CoursewareIdentityResolver struct {
-	apiClient CoursewareAPIClient
-	cache     *CoursewareCache
-	config    *CoursewareConfig
+	apiClient      CoursewareAPIClient
+	cache          *CoursewareCache
+	config         *CoursewareConfig
+	preloadManager *PreloadManager
 }
 
 // UserInfo 用户信息结构
@@ -61,11 +64,16 @@ type CoursewareConfig struct {
 
 // NewCoursewareIdentityResolver 创建课件平台身份解析器
 func NewCoursewareIdentityResolver(apiClient CoursewareAPIClient, cache *CoursewareCache, config *CoursewareConfig) *CoursewareIdentityResolver {
-	return &CoursewareIdentityResolver{
+	resolver := &CoursewareIdentityResolver{
 		apiClient: apiClient,
 		cache:     cache,
 		config:    config,
 	}
+
+	// 创建预加载管理器
+	resolver.preloadManager = NewPreloadManager(apiClient, cache, config)
+
+	return resolver
 }
 
 // ResolveGroup 解析用户组
@@ -162,6 +170,16 @@ func (c *CoursewareIdentityResolver) ResolveModel(ctx context.Context, externalI
 	return requestModel
 }
 
+// GetCache 获取缓存管理器（用于控制器）
+func (c *CoursewareIdentityResolver) GetCache() *CoursewareCache {
+	return c.cache
+}
+
+// GetPreloadManager 获取预加载管理器（用于控制器）
+func (c *CoursewareIdentityResolver) GetPreloadManager() *PreloadManager {
+	return c.preloadManager
+}
+
 // CoursewareCache Redis缓存管理器
 type CoursewareCache struct {
 	redisClient RedisClient
@@ -255,6 +273,109 @@ func (c *CoursewareCache) DeleteUserInfo(ctx context.Context, teacherId string) 
 	return c.redisClient.Del(ctx, key).Err()
 }
 
+// CacheStats 缓存统计信息
+type CacheStats struct {
+	CachedUsers  int    `json:"cached_users"`
+	LastSyncTime *int64 `json:"last_sync_time"`
+}
+
+// CacheItemInfo 缓存项详细信息
+type CacheItemInfo struct {
+	TeacherID      string `json:"teacher_id"`
+	TeacherName    string `json:"teacher_name"`
+	SchoolName     string `json:"school_name"`
+	SubjectName    string `json:"subject_name"`
+	GroupName      string `json:"group_name"`
+	PreferredModel string `json:"preferred_model"`
+	CacheTime      int64  `json:"cache_time"`
+	ExpiryTime     int64  `json:"expiry_time"`
+}
+
+// GetStats 获取缓存统计信息
+func (c *CoursewareCache) GetStats() *CacheStats {
+	// 这里简化实现，实际应该从Redis获取统计信息
+	stats := &CacheStats{
+		CachedUsers:  0,
+		LastSyncTime: nil,
+	}
+
+	// TODO: 实现从Redis获取实际统计信息
+	return stats
+}
+
+// GetCacheItems 获取缓存项列表（分页）
+func (c *CoursewareCache) GetCacheItems(page, size int, search string) ([]CacheItemInfo, int) {
+	var items []CacheItemInfo
+	total := 0
+
+	// 获取所有缓存键
+	pattern := "courseware:teacher:*"
+	keys, err := c.redisClient.Keys(context.Background(), pattern).Result()
+	if err != nil {
+		logger.Errorf(context.Background(), "获取缓存键失败: %v", err)
+		return items, total
+	}
+
+	total = len(keys)
+
+	// 计算分页
+	start := (page - 1) * size
+	end := start + size
+	if start >= total {
+		return items, total
+	}
+	if end > total {
+		end = total
+	}
+
+	// 获取当前页的键
+	pageKeys := keys[start:end]
+
+	// 批量获取缓存数据
+	for _, key := range pageKeys {
+		teacherId := strings.TrimPrefix(key, "courseware:teacher:")
+
+		// 如果设置了搜索条件，进行过滤
+		if search != "" && !strings.Contains(strings.ToLower(teacherId), strings.ToLower(search)) {
+			continue
+		}
+
+		// 获取用户信息
+		userInfo, err := c.GetUserInfo(context.Background(), teacherId)
+		if err != nil {
+			logger.Warnf(context.Background(), "获取用户信息失败: teacherId=%s, error=%v", teacherId, err)
+			continue
+		}
+
+		if userInfo != nil {
+			items = append(items, CacheItemInfo{
+				TeacherID:      userInfo.TeacherId,
+				TeacherName:    userInfo.TeacherName,
+				SchoolName:     userInfo.SchoolName,
+				SubjectName:    userInfo.SubjectName,
+				GroupName:      userInfo.GroupName,
+				PreferredModel: userInfo.PreferredModel,
+				CacheTime:      userInfo.UpdatedAt,
+				ExpiryTime:     userInfo.UpdatedAt + int64(c.config.CacheTTL.Seconds()),
+			})
+		}
+	}
+
+	return items, total
+}
+
+// IsSyncing 检查是否正在同步
+func (c *CoursewareCache) IsSyncing() bool {
+	// TODO: 实现同步状态检查
+	return false
+}
+
+// ClearCache 清理所有缓存
+func (c *CoursewareCache) ClearCache() int {
+	// TODO: 实现清理所有缓存的逻辑
+	return 0
+}
+
 // PreloadManager 预加载管理器
 type PreloadManager struct {
 	apiClient CoursewareAPIClient
@@ -277,7 +398,7 @@ func (p *PreloadManager) PreloadUserInfos(ctx context.Context) error {
 
 	// 1. 获取所有需要预加载的老师ID列表
 	logger.Debugf(ctx, "调用课件平台API获取所有老师ID列表")
-	teacherIds, err := p.apiClient.GetAllTeacherIds(ctx)
+	teacherIds, err := p.apiClient.GetTeacherIds(ctx)
 	if err != nil {
 		logger.Errorf(ctx, "获取老师ID列表失败: %v", err)
 		return err
@@ -388,4 +509,10 @@ func (p *PreloadManager) StartPeriodicRefresh(ctx context.Context) {
 	}()
 
 	logger.Infof(ctx, "定期刷新任务已启动，间隔: %v", p.config.RefreshInterval)
+}
+
+// RefreshCache 手动刷新缓存
+func (p *PreloadManager) RefreshCache(ctx context.Context) error {
+	logger.Infof(ctx, "开始手动刷新缓存")
+	return p.PreloadUserInfos(ctx)
 }

@@ -452,3 +452,63 @@ func (c *CoursewareClient) BatchGetUserInfo(ctx context.Context, teacherIds []st
 		len(response.Data.Users), response.Data.SuccessCount, response.Data.ErrorCount)
 	return response.Data.Users, nil
 }
+
+// GetTeacherIds 获取所有教师ID列表
+func (c *CoursewareClient) GetTeacherIds(ctx context.Context) ([]string, error) {
+	if !c.IsValid() {
+		return nil, fmt.Errorf("课件平台API客户端未正确初始化")
+	}
+
+	// 构建请求URL
+	url := fmt.Sprintf("%s/api/v1/teachers/ids", c.baseURL)
+	logger.Debugf(ctx, "调用课件平台API获取教师ID列表: url=%s", url)
+
+	// 创建请求
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		logger.Errorf(ctx, "创建API请求失败: error=%v", err)
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+
+	// 设置请求头
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.apiKey))
+	req.Header.Set("Content-Type", "application/json")
+
+	// 发送请求
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		logger.Errorf(ctx, "发送API请求失败: error=%v", err)
+		return nil, fmt.Errorf("发送请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态码
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		logger.Errorf(ctx, "API请求失败: statusCode=%d, response=%s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("API请求失败: 状态码=%d, 响应=%s", resp.StatusCode, string(body))
+	}
+
+	// 解析响应
+	var response struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			TeacherIds []string `json:"teacher_ids"`
+			Count      int      `json:"count"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		logger.Errorf(ctx, "解析API响应失败: error=%v", err)
+		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	if response.Code != 200 {
+		logger.Errorf(ctx, "API返回错误: code=%d, message=%s", response.Code, response.Message)
+		return nil, fmt.Errorf("API返回错误: %s", response.Message)
+	}
+
+	logger.Debugf(ctx, "API返回教师ID列表: count=%d", len(response.Data.TeacherIds))
+	return response.Data.TeacherIds, nil
+}

@@ -124,9 +124,24 @@ var ValidThemes = map[string]bool{
 }
 
 // 课件平台API配置
+var CoursewareEnabled = env.Bool("COURSEWARE_ENABLED", false)
 var CoursewarePlatformBaseURL = env.String("COURSEWARE_PLATFORM_BASE_URL", "")
 var CoursewarePlatformAPIKey = env.String("COURSEWARE_PLATFORM_API_KEY", "")
 var CoursewarePlatformTimeout = env.Int("COURSEWARE_PLATFORM_TIMEOUT", 10) // 单位：秒
+
+// 课件平台缓存配置
+var CoursewareCacheTTL = parseDuration(env.String("COURSEWARE_CACHE_TTL", "10m"), 10*time.Minute)
+var CoursewareRefreshInterval = parseDuration(env.String("COURSEWARE_REFRESH_INTERVAL", "1h"), 1*time.Hour)
+var CoursewarePreloadBatchSize = env.Int("COURSEWARE_PRELOAD_BATCH_SIZE", 100)
+var CoursewareDefaultGroup = env.String("COURSEWARE_DEFAULT_GROUP", "default")
+
+// parseDuration 解析时间间隔字符串，如果解析失败则返回默认值
+func parseDuration(s string, defaultValue time.Duration) time.Duration {
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return defaultValue
+}
 
 // All duration's unit is seconds
 // Shouldn't larger then RateLimitKeyExpirationDuration

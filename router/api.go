@@ -126,5 +126,18 @@ func SetApiRouter(router *gin.Engine) {
 			groupRoute.DELETE("/:id", controller.DeleteGroup)
 		}
 
+		// 课件平台集成路由
+		coursewareRoute := apiRouter.Group("/courseware")
+		coursewareRoute.Use(middleware.AdminAuth())
+		{
+			coursewareRoute.GET("/status", controller.GetCoursewareStatus)
+			coursewareRoute.GET("/config", controller.GetCoursewareConfig)
+			coursewareRoute.GET("/cache", controller.GetCoursewareCache)
+			coursewareRoute.POST("/sync", controller.SyncCoursewareUsers)
+			coursewareRoute.DELETE("/cache", controller.ClearCoursewareCache)
+			coursewareRoute.POST("/cache/refresh", controller.RefreshCoursewareCache)
+			coursewareRoute.POST("/test", controller.TestCoursewareConnection)
+		}
+
 	}
 }
