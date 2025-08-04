@@ -21,7 +21,16 @@ func Distribute() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		ctx := c.Request.Context()
 		userId := c.GetInt(ctxkey.Id)
-		userGroup, _ := model.CacheGetUserGroup(userId)
+
+		// 优先使用令牌的分组，如果没有则使用用户的分组
+		tokenGroup, hasTokenGroup := c.Get(ctxkey.TokenGroup)
+		var userGroup string
+		if hasTokenGroup && tokenGroup != "" {
+			userGroup = tokenGroup.(string)
+			logger.Debugf(ctx, "使用令牌分组: %s (用户ID: %d)", userGroup, userId)
+		} else {
+			userGroup, _ = model.CacheGetUserGroup(userId)
+		}
 		c.Set(ctxkey.Group, userGroup)
 		var requestModel string
 		var channel *model.Channel

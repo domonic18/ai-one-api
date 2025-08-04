@@ -138,7 +138,15 @@ func ListModels(c *gin.Context) {
 		availableModels = strings.Split(c.GetString(ctxkey.AvailableModels), ",")
 	} else {
 		userId := c.GetInt(ctxkey.Id)
-		userGroup, _ := model.CacheGetUserGroup(userId)
+
+		// 优先使用令牌的分组，如果没有则使用用户的分组
+		tokenGroup, hasTokenGroup := c.Get(ctxkey.TokenGroup)
+		var userGroup string
+		if hasTokenGroup && tokenGroup != "" {
+			userGroup = tokenGroup.(string)
+		} else {
+			userGroup, _ = model.CacheGetUserGroup(userId)
+		}
 		availableModels, _ = model.CacheGetGroupModels(ctx, userGroup)
 	}
 	modelSet := make(map[string]bool)
@@ -192,13 +200,22 @@ func RetrieveModel(c *gin.Context) {
 func GetUserAvailableModels(c *gin.Context) {
 	ctx := c.Request.Context()
 	id := c.GetInt(ctxkey.Id)
-	userGroup, err := model.CacheGetUserGroup(id)
-	if err != nil {
-		c.JSON(http.StatusOK, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
-		return
+
+	// 优先使用令牌的分组，如果没有则使用用户的分组
+	tokenGroup, hasTokenGroup := c.Get(ctxkey.TokenGroup)
+	var userGroup string
+	var err error
+	if hasTokenGroup && tokenGroup != "" {
+		userGroup = tokenGroup.(string)
+	} else {
+		userGroup, err = model.CacheGetUserGroup(id)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
 	}
 	models, err := model.CacheGetGroupModels(ctx, userGroup)
 	if err != nil {

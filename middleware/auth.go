@@ -2,14 +2,15 @@ package middleware
 
 import (
 	"fmt"
+	"net/http"
+	"strings"
+
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common/blacklist"
 	"github.com/songquanpeng/one-api/common/ctxkey"
 	"github.com/songquanpeng/one-api/common/network"
 	"github.com/songquanpeng/one-api/model"
-	"net/http"
-	"strings"
 )
 
 func authHelper(c *gin.Context, minRole int) {
@@ -132,6 +133,8 @@ func TokenAuth() func(c *gin.Context) {
 		c.Set(ctxkey.Id, token.UserId)
 		c.Set(ctxkey.TokenId, token.Id)
 		c.Set(ctxkey.TokenName, token.Name)
+		// 设置令牌的分组信息
+		c.Set(ctxkey.TokenGroup, token.Group)
 		if len(parts) > 1 {
 			if model.IsAdmin(token.UserId) {
 				c.Set(ctxkey.SpecificChannelId, parts[1])
