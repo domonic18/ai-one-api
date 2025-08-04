@@ -62,31 +62,47 @@ func GetCoursewareStatus(c *gin.Context) {
 		IsSyncing:    false,
 	}
 
+	// 首先检查课件平台API客户端是否可用
+	apiClient := client.GetCoursewareClient()
+	if apiClient != nil && apiClient.IsValid() {
+		logger.SysLog("课件平台API客户端已初始化，开始测试连接")
+
+		// 测试连接
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		// 尝试获取教师ID列表来测试连接
+		teacherIds, err := apiClient.GetTeacherIds(ctx)
+		if err == nil {
+			status.IsConnected = true
+			status.TotalUsers = len(teacherIds)
+			logger.SysLogf("课件平台连接测试成功，获取到 %d 个教师ID", len(teacherIds))
+		} else {
+			status.ErrorMessage = err.Error()
+			logger.SysError("课件平台连接测试失败: " + err.Error())
+		}
+	} else {
+		status.ErrorMessage = "课件平台API客户端未正确配置"
+		logger.SysError("课件平台API客户端未正确初始化")
+	}
+
 	// 如果是课件平台解析器，获取详细状态
 	if coursewareResolver, ok := resolver.(*identity.CoursewareIdentityResolver); ok {
-		// 测试连接
-		apiClient := client.GetCoursewareClient()
-		if apiClient != nil && apiClient.IsValid() {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			// 尝试获取教师ID列表来测试连接
-			_, err := apiClient.GetTeacherIds(ctx)
-			if err == nil {
-				status.IsConnected = true
-			} else {
-				status.ErrorMessage = err.Error()
-			}
-		}
+		logger.SysLog("检测到课件平台身份解析器，获取缓存统计信息")
 
 		// 获取缓存统计信息
 		if cache := coursewareResolver.GetCache(); cache != nil {
 			stats := cache.GetStats()
 			status.CachedUsers = stats.CachedUsers
 			status.LastSyncTime = stats.LastSyncTime
+			logger.SysLogf("缓存统计信息: 缓存用户数=%d", stats.CachedUsers)
 		}
 	} else {
-		status.ErrorMessage = "课件平台集成未启用或使用默认解析器"
+		// 如果不是课件平台解析器，但API客户端可用，说明配置了但未启用集成
+		if status.IsConnected {
+			status.ErrorMessage = "课件平台集成已配置但未启用"
+			logger.SysLog("课件平台API已连接，但集成功能未启用")
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

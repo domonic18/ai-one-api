@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Button,
   Container,
-  Form,
   Header,
   Icon,
   Segment,
@@ -12,7 +11,6 @@ import {
   Grid,
   Statistic,
   Table,
-  Modal,
   Confirm,
   Divider,
   Card,
@@ -40,10 +38,10 @@ const CoursewareIntegration = () => {
     cachedUsers: 0,
     syncProgress: 0,
     isSyncing: false,
+    error_message: '',
   });
   const [cacheData, setCacheData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [modalOpen, setModalOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [editingCache, setEditingCache] = useState(null);
 
@@ -68,7 +66,17 @@ const CoursewareIntegration = () => {
     try {
       const response = await API.get('/api/courseware/status');
       if (response.data.success) {
-        setStatus(response.data.data || {});
+        const data = response.data.data || {};
+        // 修复字段名映射：后端使用下划线，前端使用驼峰
+        setStatus({
+          isConnected: data.is_connected || false,
+          lastSyncTime: data.last_sync_time || null,
+          totalUsers: data.total_users || 0,
+          cachedUsers: data.cached_users || 0,
+          syncProgress: data.sync_progress || 0,
+          isSyncing: data.is_syncing || false,
+          error_message: data.error_message || '',
+        });
       }
     } catch (error) {
       console.error('加载状态失败:', error);
@@ -88,22 +96,6 @@ const CoursewareIntegration = () => {
       setCacheData([]); // 确保在错误时设置为空数组
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleConfigSubmit = async () => {
-    try {
-      const response = await API.post('/api/courseware/config', config);
-      if (response.data.success) {
-        showSuccess('配置保存成功');
-        setModalOpen(false);
-        loadConfig();
-        loadStatus();
-      } else {
-        showError(response.data.message || '保存失败');
-      }
-    } catch (error) {
-      showError('保存失败: ' + error.message);
     }
   };
 
@@ -189,6 +181,18 @@ const CoursewareIntegration = () => {
     return <Label color="grey">空闲</Label>;
   };
 
+  const renderErrorMessage = () => {
+    if (status.error_message) {
+      return (
+        <Message warning>
+          <Message.Header>连接状态说明</Message.Header>
+          <p>{status.error_message}</p>
+        </Message>
+      );
+    }
+    return null;
+  };
+
   return (
     <Container>
       <Header as="h2" icon textAlign="center">
@@ -224,6 +228,9 @@ const CoursewareIntegration = () => {
         </Grid.Column>
       </Grid>
 
+      {/* 错误信息显示 */}
+      {renderErrorMessage()}
+
       {/* 配置卡片 */}
       <Card fluid>
         <Card.Content>
@@ -248,10 +255,6 @@ const CoursewareIntegration = () => {
         </Card.Content>
         <Card.Content extra>
           <Button.Group>
-            <Button primary onClick={() => setModalOpen(true)}>
-              <Icon name="edit" />
-              编辑配置
-            </Button>
             <Button onClick={handleTestConnection}>
               <Icon name="wifi" />
               测试连接
@@ -335,88 +338,6 @@ const CoursewareIntegration = () => {
           </Message>
         )}
       </Segment>
-
-      {/* 配置编辑模态框 */}
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} size="large">
-        <Modal.Header>编辑集成配置</Modal.Header>
-        <Modal.Content>
-          <Form>
-            <Form.Field>
-              <label>启用集成</label>
-              <Form.Checkbox
-                label="启用课件平台集成"
-                checked={config.enabled}
-                onChange={(e, { checked }) => setConfig({ ...config, enabled: checked })}
-              />
-            </Form.Field>
-            <Form.Field>
-              <label>API地址</label>
-              <Form.Input
-                placeholder="https://courseware.example.com/api/v1"
-                value={config.base_url}
-                onChange={(e, { value }) => setConfig({ ...config, base_url: value })}
-              />
-            </Form.Field>
-            <Form.Field>
-              <label>API密钥</label>
-              <Form.Input
-                type="password"
-                placeholder="请输入API密钥"
-                value={config.api_key}
-                onChange={(e, { value }) => setConfig({ ...config, api_key: value })}
-              />
-            </Form.Field>
-            <Form.Field>
-              <label>超时时间（秒）</label>
-              <Form.Input
-                type="number"
-                value={config.timeout}
-                onChange={(e, { value }) => setConfig({ ...config, timeout: parseInt(value) || 5 })}
-              />
-            </Form.Field>
-            <Form.Field>
-              <label>缓存时间（分钟）</label>
-              <Form.Input
-                type="number"
-                value={config.cache_ttl}
-                onChange={(e, { value }) => setConfig({ ...config, cache_ttl: parseInt(value) || 10 })}
-              />
-            </Form.Field>
-            <Form.Field>
-              <label>默认分组</label>
-              <Form.Input
-                placeholder="default"
-                value={config.default_group}
-                onChange={(e, { value }) => setConfig({ ...config, default_group: value })}
-              />
-            </Form.Field>
-            <Form.Field>
-              <label>预加载批次大小</label>
-              <Form.Input
-                type="number"
-                value={config.preload_batch_size}
-                onChange={(e, { value }) => setConfig({ ...config, preload_batch_size: parseInt(value) || 100 })}
-              />
-            </Form.Field>
-            <Form.Field>
-              <label>刷新间隔（分钟）</label>
-              <Form.Input
-                type="number"
-                value={config.refresh_interval}
-                onChange={(e, { value }) => setConfig({ ...config, refresh_interval: parseInt(value) || 60 })}
-              />
-            </Form.Field>
-          </Form>
-        </Modal.Content>
-        <Modal.Actions>
-          <Button onClick={() => setModalOpen(false)}>
-            取消
-          </Button>
-          <Button primary onClick={handleConfigSubmit}>
-            保存
-          </Button>
-        </Modal.Actions>
-      </Modal>
 
       {/* 删除确认框 */}
       <Confirm
