@@ -182,17 +182,20 @@ func RecordExtendedLog(ctx context.Context, logId int64, externalUserId string) 
 
 	// 异步记录扩展日志，不影响主流程
 	go func() {
+		// 创建新的context，避免使用已取消的HTTP请求context
+		asyncCtx := context.Background()
+
 		// 1. 获取身份解析器
 		resolver := identity.GetIdentityResolver()
 		if resolver == nil {
-			logger.Warnf(ctx, "身份解析器未初始化，跳过扩展日志: externalUserId=%s", externalUserId)
+			logger.Warnf(asyncCtx, "身份解析器未初始化，跳过扩展日志: externalUserId=%s", externalUserId)
 			return
 		}
 
 		// 2. 获取用户组
-		userGroup := resolver.ResolveGroup(ctx, externalUserId)
+		userGroup := resolver.ResolveGroup(asyncCtx, externalUserId)
 		if userGroup == "" {
-			logger.Debugf(ctx, "用户组解析为空，跳过扩展日志: externalUserId=%s", externalUserId)
+			logger.Debugf(asyncCtx, "用户组解析为空，跳过扩展日志: externalUserId=%s", externalUserId)
 			return
 		}
 
@@ -209,11 +212,11 @@ func RecordExtendedLog(ctx context.Context, logId int64, externalUserId string) 
 		}
 
 		// 5. 创建扩展日志
-		_, err := CreateExtendedLog(ctx, logId, externalUserId, userGroup, dimensionInfo)
+		_, err := CreateExtendedLog(asyncCtx, logId, externalUserId, userGroup, dimensionInfo)
 		if err != nil {
-			logger.Warnf(ctx, "记录扩展日志失败: logId=%d, externalUserId=%s, error=%v", logId, externalUserId, err)
+			logger.Warnf(asyncCtx, "记录扩展日志失败: logId=%d, externalUserId=%s, error=%v", logId, externalUserId, err)
 		} else {
-			logger.Debugf(ctx, "扩展日志记录成功: logId=%d, externalUserId=%s, group=%s", logId, externalUserId, userGroup)
+			logger.Debugf(asyncCtx, "扩展日志记录成功: logId=%d, externalUserId=%s, group=%s", logId, externalUserId, userGroup)
 		}
 	}()
 }
