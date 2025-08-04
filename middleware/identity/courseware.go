@@ -293,13 +293,36 @@ type CacheItemInfo struct {
 
 // GetStats 获取缓存统计信息
 func (c *CoursewareCache) GetStats() *CacheStats {
-	// 这里简化实现，实际应该从Redis获取统计信息
-	stats := &CacheStats{
-		CachedUsers:  0,
-		LastSyncTime: nil,
+	ctx := context.Background()
+
+	// 获取所有课件平台相关的缓存键
+	pattern := "courseware:teacher:*"
+	keys, err := c.redisClient.Keys(ctx, pattern).Result()
+	if err != nil {
+		logger.Errorf(ctx, "获取缓存键失败: %v", err)
+		return &CacheStats{
+			CachedUsers:  0,
+			LastSyncTime: nil,
+		}
 	}
 
-	// TODO: 实现从Redis获取实际统计信息
+	// 计算缓存用户数
+	cachedUsers := len(keys)
+
+	// 获取最后同步时间（这里简化实现，实际可以从特定的同步时间键获取）
+	var lastSyncTime *int64
+	if cachedUsers > 0 {
+		// 如果有缓存数据，使用当前时间作为最后同步时间
+		now := time.Now().Unix()
+		lastSyncTime = &now
+	}
+
+	stats := &CacheStats{
+		CachedUsers:  cachedUsers,
+		LastSyncTime: lastSyncTime,
+	}
+
+	logger.Debugf(ctx, "获取缓存统计信息: cachedUsers=%d, lastSyncTime=%v", cachedUsers, lastSyncTime)
 	return stats
 }
 
@@ -372,8 +395,30 @@ func (c *CoursewareCache) IsSyncing() bool {
 
 // ClearCache 清理所有缓存
 func (c *CoursewareCache) ClearCache() int {
-	// TODO: 实现清理所有缓存的逻辑
-	return 0
+	ctx := context.Background()
+
+	// 获取所有课件平台相关的缓存键
+	pattern := "courseware:teacher:*"
+	keys, err := c.redisClient.Keys(ctx, pattern).Result()
+	if err != nil {
+		logger.Errorf(ctx, "获取缓存键失败: %v", err)
+		return 0
+	}
+
+	if len(keys) == 0 {
+		logger.Infof(ctx, "没有找到需要清理的缓存键")
+		return 0
+	}
+
+	// 批量删除缓存键
+	deleted, err := c.redisClient.Del(ctx, keys...).Result()
+	if err != nil {
+		logger.Errorf(ctx, "删除缓存失败: %v", err)
+		return 0
+	}
+
+	logger.Infof(ctx, "成功清理课件平台缓存: 删除了 %d 个缓存项", deleted)
+	return int(deleted)
 }
 
 // PreloadManager 预加载管理器
