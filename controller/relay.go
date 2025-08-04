@@ -92,6 +92,10 @@ func Relay(c *gin.Context) {
 	bizErr := relayHelper(c, relayMode)
 	if bizErr == nil {
 		monitor.Emit(channelId, true)
+		// 记录请求成功的原因
+		group := c.GetString(ctxkey.Group)
+		originalModel := c.GetString(ctxkey.OriginalModel)
+		logger.Infof(ctx, "请求成功: 用户组=%s, 模型=%s, 渠道=%d, 用户=%d", group, originalModel, channelId, userId)
 		return
 	}
 	lastFailedChannelId := channelId

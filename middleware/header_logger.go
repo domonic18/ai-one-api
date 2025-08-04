@@ -26,9 +26,6 @@ func HeaderLogger() gin.HandlerFunc {
 			logger.SysLog(headerLog)
 		}
 
-		// Log key headers individually for easier filtering
-		logKeyHeaders(c)
-
 		c.Next()
 	}
 }
@@ -72,65 +69,4 @@ func maskSensitiveValues(values []string) []string {
 		}
 	}
 	return masked
-}
-
-// logKeyHeaders logs important headers individually
-func logKeyHeaders(c *gin.Context) {
-	ctx := c.Request.Context()
-
-	// Log User-Agent
-	userAgent := c.GetHeader("User-Agent")
-	if userAgent != "" {
-		logger.Infof(ctx, "Header-User-Agent: %s", userAgent)
-	}
-
-	// Log Content-Type
-	contentType := c.GetHeader("Content-Type")
-	if contentType != "" {
-		logger.Infof(ctx, "Header-Content-Type: %s", contentType)
-	}
-
-	// Log Accept
-	accept := c.GetHeader("Accept")
-	if accept != "" {
-		logger.Infof(ctx, "Header-Accept: %s", accept)
-	}
-
-	// Log X-Forwarded-For (for proxy headers)
-	xForwardedFor := c.GetHeader("X-Forwarded-For")
-	if xForwardedFor != "" {
-		logger.Infof(ctx, "Header-X-Forwarded-For: %s", xForwardedFor)
-	}
-
-	// Log X-Real-IP (for proxy headers)
-	xRealIP := c.GetHeader("X-Real-IP")
-	if xRealIP != "" {
-		logger.Infof(ctx, "Header-X-Real-IP: %s", xRealIP)
-	}
-
-	// Log Origin
-	origin := c.GetHeader("Origin")
-	if origin != "" {
-		logger.Infof(ctx, "Header-Origin: %s", origin)
-	}
-
-	// Log Referer
-	referer := c.GetHeader("Referer")
-	if referer != "" {
-		logger.Infof(ctx, "Header-Referer: %s", referer)
-	}
-
-	// Log Authorization (masked)
-	authorization := c.GetHeader("Authorization")
-	if authorization != "" {
-		maskedAuth := authorization
-		if len(maskedAuth) > 20 {
-			maskedAuth = maskedAuth[:10] + "..." + maskedAuth[len(maskedAuth)-5:]
-		} else if len(maskedAuth) > 8 {
-			maskedAuth = maskedAuth[:4] + "****" + maskedAuth[len(maskedAuth)-2:]
-		} else {
-			maskedAuth = "****"
-		}
-		logger.Infof(ctx, "Header-Authorization: %s", maskedAuth)
-	}
 }

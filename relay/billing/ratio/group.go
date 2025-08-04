@@ -1,9 +1,11 @@
 package ratio
 
 import (
+	"context"
 	"encoding/json"
-	"github.com/songquanpeng/one-api/common/logger"
 	"sync"
+
+	"github.com/songquanpeng/one-api/common/logger"
 )
 
 var groupRatioLock sync.RWMutex
@@ -33,7 +35,8 @@ func GetGroupRatio(name string) float64 {
 	defer groupRatioLock.RUnlock()
 	ratio, ok := GroupRatio[name]
 	if !ok {
-		logger.SysError("group ratio not found: " + name)
+		ctx := context.Background()
+		logger.Debugf(ctx, "group ratio not found, using default: %s", name)
 		return 1
 	}
 	return ratio

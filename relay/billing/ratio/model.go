@@ -1,6 +1,7 @@
 package ratio
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -684,6 +685,7 @@ func UpdateModelRatioByJSONString(jsonStr string) error {
 }
 
 func GetModelRatio(name string, channelType int) float64 {
+	ctx := context.Background()
 	modelRatioLock.RLock()
 	defer modelRatioLock.RUnlock()
 	if strings.HasPrefix(name, "qwen-") && strings.HasSuffix(name, "-internet") {
@@ -705,7 +707,7 @@ func GetModelRatio(name string, channelType int) float64 {
 	if ratio, ok := DefaultModelRatio[name]; ok {
 		return ratio
 	}
-	logger.SysError("model ratio not found: " + name)
+	logger.Debugf(ctx, "model ratio not found, using default: %s", name)
 	return 30
 }
 

@@ -78,8 +78,6 @@ func NewCoursewareIdentityResolver(apiClient CoursewareAPIClient, cache *Coursew
 
 // ResolveGroup 解析用户组
 func (c *CoursewareIdentityResolver) ResolveGroup(ctx context.Context, externalIdentity string) string {
-	logger.Debugf(ctx, "开始解析用户组: teacher=%s", externalIdentity)
-
 	// 1. 从Redis缓存获取用户信息
 	userInfo, err := c.cache.GetUserInfo(ctx, externalIdentity)
 	if err != nil {
@@ -90,7 +88,6 @@ func (c *CoursewareIdentityResolver) ResolveGroup(ctx context.Context, externalI
 
 	// 2. 缓存命中，直接返回
 	if userInfo != nil {
-		logger.Debugf(ctx, "缓存命中: teacher=%s, group=%s", externalIdentity, userInfo.GroupName)
 		return userInfo.GroupName
 	}
 
@@ -197,7 +194,6 @@ func NewCoursewareCache(redisClient RedisClient, config *CoursewareConfig) *Cour
 // GetUserInfo 从Redis获取用户信息
 func (c *CoursewareCache) GetUserInfo(ctx context.Context, teacherId string) (*UserInfo, error) {
 	key := fmt.Sprintf("courseware:teacher:%s", teacherId)
-	logger.Debugf(ctx, "从Redis获取用户信息: key=%s", key)
 
 	result, err := c.redisClient.Get(ctx, key).Result()
 	if err != nil {
