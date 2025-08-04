@@ -536,7 +536,7 @@ const TokensTable = () => {
                       {token.group || 'default'}
                     </Label>
                     <Button
-                      size='mini'
+                      size='tiny'
                       icon
                       basic
                       onClick={() => openGroupModal(token)}
@@ -546,7 +546,14 @@ const TokensTable = () => {
                     </Button>
                   </Table.Cell>
                   <Table.Cell>
-                    <div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '4px',
+                        alignItems: 'flex-start',
+                      }}
+                    >
                       <Button.Group color='green' size={'tiny'}>
                         <Button
                           size={'tiny'}
@@ -561,7 +568,7 @@ const TokensTable = () => {
                           options={copyOptionsWithHandlers}
                           trigger={<></>}
                         />
-                      </Button.Group>{' '}
+                      </Button.Group>
                       <Button.Group color='olive' size={'tiny'}>
                         <Button
                           size={'tiny'}
@@ -576,48 +583,50 @@ const TokensTable = () => {
                           options={openLinkOptionsWithHandlers}
                           trigger={<></>}
                         />
-                      </Button.Group>{' '}
-                      <Popup
-                        trigger={
-                          <Button size='mini' negative>
-                            {t('token.buttons.delete')}
+                      </Button.Group>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <Popup
+                          trigger={
+                            <Button size='tiny' negative>
+                              {t('token.buttons.delete')}
+                            </Button>
+                          }
+                          on='click'
+                          flowing
+                          hoverable
+                        >
+                          <Button
+                            size='tiny'
+                            negative
+                            onClick={() => {
+                              manageToken(token.id, 'delete', idx);
+                            }}
+                          >
+                            {t('token.buttons.confirm_delete')} {token.name}
                           </Button>
-                        }
-                        on='click'
-                        flowing
-                        hoverable
-                      >
+                        </Popup>
                         <Button
-                          size={'tiny'}
-                          negative
+                          size='tiny'
                           onClick={() => {
-                            manageToken(token.id, 'delete', idx);
+                            manageToken(
+                              token.id,
+                              token.status === 1 ? 'disable' : 'enable',
+                              idx
+                            );
                           }}
                         >
-                          {t('token.buttons.confirm_delete')} {token.name}
+                          {token.status === 1
+                            ? t('token.buttons.disable')
+                            : t('token.buttons.enable')}
                         </Button>
-                      </Popup>
-                      <Button
-                        size={'tiny'}
-                        onClick={() => {
-                          manageToken(
-                            token.id,
-                            token.status === 1 ? 'disable' : 'enable',
-                            idx
-                          );
-                        }}
-                      >
-                        {token.status === 1
-                          ? t('token.buttons.disable')
-                          : t('token.buttons.enable')}
-                      </Button>
-                      <Button
-                        size={'tiny'}
-                        as={Link}
-                        to={'/token/edit/' + token.id}
-                      >
-                        {t('token.buttons.edit')}
-                      </Button>
+                        <Button
+                          size='tiny'
+                          as={Link}
+                          to={'/token/edit/' + token.id}
+                        >
+                          {t('token.buttons.edit')}
+                        </Button>
+                      </div>
                     </div>
                   </Table.Cell>
                 </Table.Row>
@@ -628,10 +637,10 @@ const TokensTable = () => {
         <Table.Footer>
           <Table.Row>
             <Table.HeaderCell colSpan='8'>
-              <Button size='small' as={Link} to='/token/add' loading={loading}>
+              <Button size='tiny' as={Link} to='/token/add' loading={loading}>
                 {t('token.buttons.add')}
               </Button>
-              <Button size='small' onClick={refresh} loading={loading}>
+              <Button size='tiny' onClick={refresh} loading={loading}>
                 {t('token.buttons.refresh')}
               </Button>
               <Dropdown
@@ -658,7 +667,7 @@ const TokensTable = () => {
                 floated='right'
                 activePage={activePage}
                 onPageChange={onPaginationChange}
-                size='small'
+                size='tiny'
                 siblingRange={1}
                 totalPages={
                   Math.ceil(tokens.length / ITEMS_PER_PAGE) +

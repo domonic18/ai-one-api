@@ -169,6 +169,7 @@
       "remain_quota": "Remaining Quota",
       "created_time": "Created Time",
       "expired_time": "Expiry Time",
+      "user_group": "User Group",
       "actions": "Actions",
       "no_name": "None",
       "never_expire": "never",
@@ -238,13 +239,6 @@
       "default": "Default Order",
       "by_remain": "Sort by Remaining Quota",
       "by_used": "Sort by Used Quota"
-    }
-  },
-  "common": {
-    "quota": {
-      "display": "Equivalent: ${{amount}}",
-      "display_short": "${{amount}}",
-      "unit": "$"
     }
   },
   "redemption": {
@@ -883,6 +877,11 @@
     }
   },
   "common": {
+    "quota": {
+      "display": "Equivalent: ${{amount}}",
+      "display_short": "${{amount}}",
+      "unit": "$"
+    },
     "cancel": "Cancel",
     "create": "Create",
     "update": "Update",

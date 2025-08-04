@@ -169,6 +169,7 @@
       "remain_quota": "剩余额度",
       "created_time": "创建时间",
       "expired_time": "过期时间",
+      "user_group": "用户组",
       "actions": "操作",
       "no_name": "无",
       "never_expire": "永不过期",
@@ -238,13 +239,6 @@
       "default": "默认排序",
       "by_remain": "按剩余额度排序",
       "by_used": "按已用额度排序"
-    }
-  },
-  "common": {
-    "quota": {
-      "display": "等价金额：${{amount}}",
-      "display_short": "${{amount}}",
-      "unit": "$"
     }
   },
   "redemption": {
@@ -879,6 +873,11 @@
     }
   },
   "common": {
+    "quota": {
+      "display": "等价金额：${{amount}}",
+      "display_short": "${{amount}}",
+      "unit": "$"
+    },
     "cancel": "取消",
     "create": "创建",
     "update": "更新",
