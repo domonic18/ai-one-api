@@ -116,6 +116,15 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), controller.SearchUserLogs)
+
+		// 扩展日志路由
+		extendedLogRoute := logRoute.Group("/extended")
+		{
+			extendedLogRoute.GET("/", middleware.AdminAuth(), controller.GetAllExtendedLogs)
+			extendedLogRoute.GET("/self", middleware.UserAuth(), controller.GetUserExtendedLogs)
+			extendedLogRoute.GET("/:log_id", middleware.AdminAuth(), controller.GetExtendedLogDetail)
+			extendedLogRoute.GET("/statistics", middleware.AdminAuth(), controller.GetExtendedLogsStatistics)
+		}
 		groupRoute := apiRouter.Group("/group")
 		groupRoute.Use(middleware.AdminAuth())
 		{

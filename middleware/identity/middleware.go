@@ -22,6 +22,11 @@ func Identity() gin.HandlerFunc {
 		// 记录请求开始
 		logger.Debugf(ctx, "身份解析中间件开始处理: externalUserId=%s, smartModelSelection=%s", externalUserId, smartModelSelection)
 
+		// 如果有X-User-ID，将其设置到context中（无论是否启用课件平台集成）
+		if externalUserId != "" {
+			c.Set(ctxkey.ExternalUserId, externalUserId)
+		}
+
 		// 如果有X-User-ID且课件平台集成已启用，则使用身份解析器
 		if externalUserId != "" && isCoursewareEnabled() {
 			logger.Debugf(ctx, "启用课件平台身份解析: externalUserId=%s", externalUserId)

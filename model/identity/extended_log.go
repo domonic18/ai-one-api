@@ -46,14 +46,17 @@ type DimensionInfo struct {
 // CreateExtendedLog 创建扩展日志
 func CreateExtendedLog(ctx context.Context, logId int64, externalUserId string, userGroup string, dimensionInfo *DimensionInfo) (*ExtendedLog, error) {
 	// 序列化维度信息
-	var dimensionBytes []byte
-	var err error
+	var dimensionInfoStr string
 	if dimensionInfo != nil {
-		dimensionBytes, err = json.Marshal(dimensionInfo)
+		dimensionBytes, err := json.Marshal(dimensionInfo)
 		if err != nil {
 			logger.Warnf(ctx, "序列化维度信息失败: externalUserId=%s, error=%v", externalUserId, err)
 			return nil, fmt.Errorf("序列化维度信息失败: %w", err)
 		}
+		dimensionInfoStr = string(dimensionBytes)
+	} else {
+		// 如果dimensionInfo为空，使用null而不是空字符串
+		dimensionInfoStr = "null"
 	}
 
 	// 创建扩展日志
@@ -61,13 +64,13 @@ func CreateExtendedLog(ctx context.Context, logId int64, externalUserId string, 
 		LogId:          logId,
 		ExternalUserId: externalUserId,
 		UserGroup:      userGroup,
-		DimensionInfo:  string(dimensionBytes),
+		DimensionInfo:  dimensionInfoStr,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
 	}
 
 	// 保存到数据库
-	err = model.DB.WithContext(ctx).Create(extendedLog).Error
+	err := model.DB.WithContext(ctx).Create(extendedLog).Error
 	if err != nil {
 		logger.Errorf(ctx, "创建扩展日志失败: logId=%d, externalUserId=%s, error=%v", logId, externalUserId, err)
 		return nil, fmt.Errorf("创建扩展日志失败: %w", err)

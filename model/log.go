@@ -77,14 +77,15 @@ func RecordTopupLog(ctx context.Context, userId int, content string, quota int) 
 	recordLogHelper(ctx, log)
 }
 
-func RecordConsumeLog(ctx context.Context, log *Log) {
+func RecordConsumeLog(ctx context.Context, log *Log) int64 {
 	if !config.LogConsumeEnabled {
-		return
+		return 0
 	}
 	log.Username = GetUsernameById(log.UserId)
 	log.CreatedAt = helper.GetTimestamp()
 	log.Type = LogTypeConsume
 	recordLogHelper(ctx, log)
+	return int64(log.Id)
 }
 
 func RecordTestLog(ctx context.Context, log *Log) {
@@ -248,4 +249,37 @@ func SearchLogsByDayAndModel(userId, start, end int) (LogStatistics []*LogStatis
 	`, userId, start, end).Scan(&LogStatistics).Error
 
 	return LogStatistics, err
+}
+
+// GetLogById 根据ID获取日志
+func GetLogById(logId int64) (*Log, error) {
+	var log Log
+	err := LOG_DB.Where("id = ?", logId).First(&log).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &log, nil
+}
+
+// GetLogsByIds 批量根据ID获取日志
+func GetLogsByIds(logIds []int64) ([]*Log, error) {
+	if len(logIds) == 0 {
+		return []*Log{}, nil
+	}
+
+	// 转换int64到int
+	intIds := make([]int, len(logIds))
+	for i, id := range logIds {
+		intIds[i] = int(id)
+	}
+
+	var logs []*Log
+	err := LOG_DB.Where("id IN ?", intIds).Find(&logs).Error
+	if err != nil {
+		return nil, err
+	}
+	return logs, nil
 }
