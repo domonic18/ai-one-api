@@ -111,10 +111,10 @@ func getGroupDescription(groupName string) string {
 	// 对于动态创建的用户组，尝试从数据库中获取描述
 	// 查找该用户组的代表用户（用户名为 "group_" + groupName 的用户）
 	var user model.User
-	if err := model.DB.Where("username = ? AND status = ?", "group_"+groupName, model.UserStatusDisabled).First(&user).Error; err == nil {
-		// 这里可以存储描述信息，暂时返回显示名称
+	if err := model.DB.Where("username = ?", "group_"+groupName).First(&user).Error; err == nil {
+		// 直接返回显示名称作为用户组描述
 		if user.DisplayName != "" {
-			return user.DisplayName + " 用户组"
+			return user.DisplayName
 		}
 	}
 
@@ -264,7 +264,7 @@ func UpdateGroup(c *gin.Context) {
 	// 用户组本身不管理配额，只更新描述信息
 	// 这里可以更新用户组代表用户的显示名称
 	if err := model.DB.Model(&model.User{}).
-		Where("username = ? AND status = ?", "group_"+groupName, model.UserStatusEnabled).
+		Where("username = ?", "group_"+groupName).
 		Update("display_name", req.Description).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -316,7 +316,7 @@ func DeleteGroup(c *gin.Context) {
 
 	// 检查用户组是否存在（查找用户组代表用户）
 	var groupUser model.User
-	if err := model.DB.Where("username = ? AND status = ?", "group_"+groupName, model.UserStatusDisabled).First(&groupUser).Error; err != nil {
+	if err := model.DB.Where("username = ?", "group_"+groupName).First(&groupUser).Error; err != nil {
 		logger.SysLog("DeleteGroup 用户组不存在: " + groupName)
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
@@ -325,9 +325,9 @@ func DeleteGroup(c *gin.Context) {
 		return
 	}
 
-	// 检查用户组是否有活跃用户
+	// 检查用户组是否有活跃用户（排除用户组代表用户）
 	var activeUserCount int64
-	model.DB.Model(&model.User{}).Where("`group` = ? AND status = ?", groupName, model.UserStatusEnabled).Count(&activeUserCount)
+	model.DB.Model(&model.User{}).Where("`group` = ? AND status = ? AND username NOT LIKE 'group_%'", groupName, model.UserStatusEnabled).Count(&activeUserCount)
 	if activeUserCount > 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
