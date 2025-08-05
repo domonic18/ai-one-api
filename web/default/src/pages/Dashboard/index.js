@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Card, Grid, Statistic, Segment, Label, Icon, Table, Message, Button, Dropdown } from 'semantic-ui-react';
+import { Card, Grid, Label, Icon, Table, Message, Button, Dropdown } from 'semantic-ui-react';
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -18,7 +16,6 @@ import {
   Area,
   AreaChart,
 } from 'recharts';
-import axios from 'axios';
 import { API } from '../../helpers';
 import { CHANNEL_OPTIONS } from '../../constants/channel.constants';
 
@@ -94,14 +91,8 @@ const chartConfig = {
 };
 
 const Dashboard = () => {
-  const { t } = useTranslation();
+  useTranslation(); // 保留国际化支持
   const [data, setData] = useState([]);
-  const [summaryData, setSummaryData] = useState({
-    todayRequests: 0,
-    todayQuota: 0,
-    todayTokens: 0,
-  });
-  
   const [systemStats, setSystemStats] = useState({
     totalUsers: 0,
     totalTokens: 0,
@@ -111,34 +102,58 @@ const Dashboard = () => {
   });
   
   const [channelStats, setChannelStats] = useState([]);
-  const [apiMetrics, setApiMetrics] = useState({
-    totalRequests: 0,
-    successRate: 0,
-    avgResponseTime: 0,
-    errorRate: 0,
-  });
   const [timeRange, setTimeRange] = useState('7d'); // 7d, 30d, 90d
   const [loading, setLoading] = useState(true);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    fetchDashboardData();
-    fetchSystemStats();
-    fetchChannelStats();
-    fetchApiMetrics();
+    const fetchAllData = async () => {
+      await fetchDashboardData();
+      fetchSystemStats();
+      fetchChannelStats();
+    };
+    
+    fetchAllData();
   }, [timeRange]);
 
   const fetchDashboardData = async () => {
     try {
-      const response = await API.get('/api/user/dashboard');
+      // 根据时间范围计算开始和结束日期
+      const now = new Date();
+      let startDate;
+      
+      switch(timeRange) {
+        case '30d':
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 30);
+          break;
+        case '90d':
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 90);
+          break;
+        case '7d':
+        default:
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 7);
+          break;
+      }
+      
+      // 将日期转换为Unix时间戳
+      const startTimestamp = Math.floor(startDate.getTime() / 1000);
+      const endTimestamp = Math.floor(now.getTime() / 1000);
+      
+      // 请求指定时间范围的数据
+      const response = await API.get(`/api/user/dashboard?start=${startTimestamp}&end=${endTimestamp}`);
+      
       if (response.data.success) {
         const dashboardData = response.data.data || [];
         setData(dashboardData);
-        calculateSummary(dashboardData);
+        handleDataLoaded(dashboardData);
       }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       setData([]);
-      calculateSummary([]);
+      handleDataLoaded([]);
     }
   };
 
@@ -191,57 +206,20 @@ const Dashboard = () => {
     }
   };
 
-  const fetchApiMetrics = async () => {
-    try {
-      // 从dashboard数据计算API指标
-      const totalRequests = data.reduce((sum, item) => sum + (item.RequestCount || 0), 0);
-      const totalTokens = data.reduce((sum, item) => sum + (item.PromptTokens || 0) + (item.CompletionTokens || 0), 0);
-      
-      // 模拟成功率 - 实际项目中应该从后端获取
-      const successRate = 98.5;
-      const avgResponseTime = 1250;
-      const errorRate = 100 - successRate;
-
-      setApiMetrics({
-        totalRequests,
-        successRate,
-        avgResponseTime,
-        errorRate,
-      });
-      setLoading(false);
-    } catch (error) {
-      console.error('Failed to fetch API metrics:', error);
-      setLoading(false);
-    }
+  // 设置加载状态完成
+  const finishLoading = () => {
+    setLoading(false);
   };
 
-  const calculateSummary = (dashboardData) => {
-    if (!Array.isArray(dashboardData) || dashboardData.length === 0) {
-      setSummaryData({
-        todayRequests: 0,
-        todayQuota: 0,
-        todayTokens: 0,
-      });
-      return;
+  // 处理数据加载完成
+  const handleDataLoaded = (dashboardData) => {
+    if (Array.isArray(dashboardData) && dashboardData.length > 0) {
+      // 数据加载成功
+      finishLoading();
+    } else {
+      // 无数据
+      finishLoading();
     }
-
-    const today = new Date().toISOString().split('T')[0];
-    const todayData = dashboardData.filter((item) => item.Day === today);
-
-    const summary = {
-      todayRequests: todayData.reduce(
-        (sum, item) => sum + (item.RequestCount || 0),
-        0
-      ),
-      todayQuota:
-        todayData.reduce((sum, item) => sum + (item.Quota || 0), 0) / 1000000,
-      todayTokens: todayData.reduce(
-        (sum, item) => sum + (item.PromptTokens || 0) + (item.CompletionTokens || 0),
-        0
-      ),
-    };
-
-    setSummaryData(summary);
   };
 
   // 处理API请求趋势数据
@@ -276,18 +254,32 @@ const Dashboard = () => {
       return [];
     }
 
-    const usageData = {};
-    channelStats.forEach(channel => {
-      if (channel.status === 1) { // 只统计活跃渠道
-        const channelTypeName = getChannelTypeName(channel.type);
-        usageData[channelTypeName] = (usageData[channelTypeName] || 0) + channel.requestCount;
-      }
-    });
+    // 按渠道名称统计请求量
+    const channelData = channelStats
+      .filter(channel => channel.status === 1 && channel.requestCount > 0) // 只统计活跃且有请求的渠道
+      .map(channel => ({
+        name: channel.name,
+        value: channel.requestCount
+      }))
+      .sort((a, b) => b.value - a.value);
     
-    return Object.entries(usageData)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 8); // 只显示前8个
+    // 取前7个渠道，其余归为"其他"类别
+    if (channelData.length > 7) {
+      const topChannels = channelData.slice(0, 7);
+      const otherChannels = channelData.slice(7);
+      const otherValue = otherChannels.reduce((sum, item) => sum + item.value, 0);
+      
+      if (otherValue > 0) {
+        topChannels.push({
+          name: '其他渠道',
+          value: otherValue
+        });
+      }
+      
+      return topChannels;
+    }
+    
+    return channelData;
   };
 
   // 处理渠道性能数据
@@ -297,16 +289,15 @@ const Dashboard = () => {
     }
 
     return channelStats
-      .filter(channel => channel.status === 1 && channel.requestCount > 0)
+      .filter(channel => channel.status === 1 && channel.requestCount > 0 && channel.responseTime > 0)
       .map(channel => ({
         name: channel.name,
         type: getChannelTypeName(channel.type),
         responseTime: channel.responseTime,
         requestCount: channel.requestCount,
-        successRate: Math.floor(Math.random() * 10) + 90, // 模拟成功率
       }))
       .sort((a, b) => b.requestCount - a.requestCount)
-      .slice(0, 10); // 只显示前10个
+      .slice(0, 8); // 只显示前8个
   };
 
   // 获取渠道类型名称
@@ -403,8 +394,56 @@ const Dashboard = () => {
       maxWidth: '1400px',
       margin: '0 auto'
     }}>
+      {/* 时间范围选择器 - 影响所有图表 */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px',
+        backgroundColor: techColorScheme.surface,
+        padding: '16px 20px',
+        borderRadius: '12px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
+      }}>
+        <div>
+          <h2 style={{
+            color: techColorScheme.text.primary,
+            fontSize: '20px',
+            fontWeight: '600',
+            margin: '0 0 4px 0'
+          }}>
+            仪表盘数据概览
+          </h2>
+          <p style={{
+            color: techColorScheme.text.secondary,
+            fontSize: '14px',
+            margin: '0'
+          }}>
+            选择时间范围查看数据统计
+          </p>
+        </div>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center'
+        }}>
+          <span style={{
+            color: techColorScheme.text.secondary,
+            marginRight: '8px',
+            fontSize: '14px'
+          }}>
+            时间范围:
+          </span>
+          <Dropdown
+            value={timeRange}
+            options={timeRangeOptions}
+            onChange={(e, { value }) => setTimeRange(value)}
+            style={{ minWidth: '120px' }}
+          />
+        </div>
+      </div>
+      
       {/* 顶部统计卡片 - 可点击跳转 */}
-      <Grid columns={5} stackable style={{ marginBottom: '32px' }}>
+      <Grid columns={4} stackable style={{ marginBottom: '32px' }}>
         <Grid.Column>
           <Card 
             fluid 
@@ -514,41 +553,6 @@ const Dashboard = () => {
           <Card 
             fluid 
             style={{
-              background: `linear-gradient(135deg, ${techColorScheme.chart.success} 0%, #10B981 100%)`,
-              borderRadius: '16px',
-              border: 'none',
-              boxShadow: '0 4px 20px rgba(5, 150, 105, 0.15)',
-              cursor: 'pointer',
-              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
-            }}
-            onClick={() => window.location.href = '/channel'}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.transform = 'translateY(-2px)';
-              e.currentTarget.style.boxShadow = '0 8px 25px rgba(5, 150, 105, 0.25)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 4px 20px rgba(5, 150, 105, 0.15)';
-            }}
-          >
-            <Card.Content textAlign="center" style={{ padding: '24px 16px' }}>
-              <div style={{ marginBottom: '12px' }}>
-                <Icon name="check circle" size="large" style={{ color: 'rgba(255,255,255,0.9)' }} />
-              </div>
-              <div style={{ color: 'white', fontSize: '28px', fontWeight: '700', marginBottom: '4px' }}>
-                {systemStats.activeChannels}
-              </div>
-              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '500' }}>
-                活跃渠道
-              </div>
-            </Card.Content>
-          </Card>
-        </Grid.Column>
-        
-        <Grid.Column>
-          <Card 
-            fluid 
-            style={{
               background: `linear-gradient(135deg, ${techColorScheme.chart.warning} 0%, #F59E0B 100%)`,
               borderRadius: '16px',
               border: 'none',
@@ -590,34 +594,23 @@ const Dashboard = () => {
       }}>
         <Card.Content style={{ padding: '24px' }}>
           <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
             marginBottom: '24px'
           }}>
-            <div>
-              <h3 style={{
-                color: techColorScheme.text.primary,
-                fontSize: '20px',
-                fontWeight: '600',
-                margin: '0 0 4px 0'
-              }}>
-                API请求趋势
-              </h3>
-              <p style={{
-                color: techColorScheme.text.secondary,
-                fontSize: '14px',
-                margin: '0'
-              }}>
-                监控OneAPI系统的请求量、令牌使用量和配额消耗
-              </p>
-            </div>
-            <Dropdown
-              value={timeRange}
-              options={timeRangeOptions}
-              onChange={(e, { value }) => setTimeRange(value)}
-              style={{ minWidth: '120px' }}
-            />
+            <h3 style={{
+              color: techColorScheme.text.primary,
+              fontSize: '20px',
+              fontWeight: '600',
+              margin: '0 0 4px 0'
+            }}>
+              API请求趋势
+            </h3>
+            <p style={{
+              color: techColorScheme.text.secondary,
+              fontSize: '14px',
+              margin: '0'
+            }}>
+              监控OneAPI系统的请求量、令牌使用量和配额消耗
+            </p>
           </div>
           
           {timeSeriesData.length > 0 ? (
@@ -662,6 +655,14 @@ const Dashboard = () => {
                     boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                   }}
                   labelFormatter={(label) => `日期: ${formatDate(label)}`}
+                  formatter={(value, name) => {
+                    if (name === "请求量 (次)") {
+                      return [`${value} 次`, name];
+                    } else if (name === "令牌数 (个)") {
+                      return [`${value} 个`, name];
+                    }
+                    return [value, name];
+                  }}
                 />
                 <Legend />
                 <Area
@@ -670,7 +671,7 @@ const Dashboard = () => {
                   dataKey="requests"
                   stroke={techColorScheme.chart.primary}
                   fill="url(#requestsGradient)"
-                  name="请求量"
+                  name="请求量 (次)"
                   strokeWidth={2}
                 />
                 <Area
@@ -679,7 +680,7 @@ const Dashboard = () => {
                   dataKey="tokens"
                   stroke={techColorScheme.chart.secondary}
                   fill="url(#tokensGradient)"
-                  name="令牌数"
+                  name="令牌数 (个)"
                   strokeWidth={2}
                 />
               </AreaChart>
@@ -732,11 +733,13 @@ const Dashboard = () => {
                       data={channelUsageData}
                       cx="50%"
                       cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={100}
+                      labelLine={true}
+                      label={({ name, percent }) => `${percent * 100 < 5 ? '' : (percent * 100).toFixed(0) + '%'}`}
+                      outerRadius={80}
+                      innerRadius={30}
                       fill="#8884d8"
                       dataKey="value"
+                      paddingAngle={2}
                     >
                       {channelUsageData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={chartConfig.barColors[index % chartConfig.barColors.length]} />
@@ -749,6 +752,13 @@ const Dashboard = () => {
                         borderRadius: '8px',
                         boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                       }}
+                      formatter={(value, name) => [`${value} 次 (${((value / channelUsageData.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%)`, name]}
+                    />
+                    <Legend 
+                      layout="vertical" 
+                      verticalAlign="middle" 
+                      align="right"
+                      wrapperStyle={{ fontSize: '12px', paddingLeft: '10px' }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -801,7 +811,7 @@ const Dashboard = () => {
                       type="category" 
                       dataKey="name" 
                       tick={{ fontSize: 12, fill: techColorScheme.text.secondary }}
-                      width={80}
+                      width={100}
                     />
                     <Tooltip
                       contentStyle={{
@@ -810,9 +820,15 @@ const Dashboard = () => {
                         borderRadius: '8px',
                         boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                       }}
-                      formatter={(value, name) => [value, name === 'requestCount' ? '请求量' : '响应时间(ms)']}
+                      formatter={(value, name) => {
+                        if (name === 'requestCount') return [`${value} 次`, '请求量'];
+                        if (name === 'responseTime') return [`${formatResponseTime(value)}`, '响应时间'];
+                        return [value, name];
+                      }}
                     />
-                    <Bar dataKey="requestCount" fill={techColorScheme.chart.primary} radius={[0, 4, 4, 0]} />
+                    <Legend />
+                    <Bar dataKey="requestCount" name="请求量" fill={techColorScheme.chart.primary} radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="responseTime" name="响应时间" fill={techColorScheme.chart.secondary} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
