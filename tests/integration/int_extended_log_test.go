@@ -416,14 +416,17 @@ func createTestExtendedLogs() []*identity.ExtendedLog {
 	// 创建多个测试日志
 	for i := 0; i < 10; i++ {
 		logId := int64(10000 + i)
-		externalUserId := fmt.Sprintf("teacher_%03d", i+1)
+		externalUserId := fmt.Sprintf("user_%03d", i+1)
 		userGroup := "test_group"
+
+		// 使用抽象化的维度信息，不耦合具体业务逻辑
 		dimensionInfo := &identity.DimensionInfo{
-			SchoolId:    i%3 + 1,
-			SchoolName:  fmt.Sprintf("测试学校%d", i%3+1),
-			SubjectId:   i%5 + 10,
-			SubjectName: fmt.Sprintf("测试学科%d", i%5+1),
-			TeacherName: fmt.Sprintf("测试老师%d", i+1),
+			"external_user_id": externalUserId,
+			"group_id":         i%3 + 1,
+			"group_name":       fmt.Sprintf("测试组%d", i%3+1),
+			"category_id":      i%5 + 10,
+			"category_name":    fmt.Sprintf("测试类别%d", i%5+1),
+			"user_name":        fmt.Sprintf("测试用户%d", i+1),
 		}
 
 		log, err := identity.CreateExtendedLog(ctx, logId, externalUserId, userGroup, dimensionInfo)
