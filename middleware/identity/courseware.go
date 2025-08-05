@@ -167,6 +167,88 @@ func (c *CoursewareIdentityResolver) ResolveModel(ctx context.Context, externalI
 	return requestModel
 }
 
+// GetUserDetails 获取用户详细信息用于扩展日志记录
+// 完全抽象化实现：直接将缓存中的用户信息转换为map，不包含任何业务逻辑
+func (c *CoursewareIdentityResolver) GetUserDetails(ctx context.Context, externalIdentity string) map[string]interface{} {
+	logger.Debugf(ctx, "获取用户详细信息: externalIdentity=%s", externalIdentity)
+
+	// 1. 从Redis缓存获取用户信息
+	userInfo, err := c.cache.GetUserInfo(ctx, externalIdentity)
+	if err != nil {
+		logger.Warnf(ctx, "获取用户详细信息缓存失败: externalIdentity=%s, error=%v", externalIdentity, err)
+		return nil
+	}
+
+	// 2. 缓存未命中
+	if userInfo == nil {
+		logger.Debugf(ctx, "用户详细信息缓存未命中: externalIdentity=%s", externalIdentity)
+		return nil
+	}
+
+	// 3. 完全抽象化：将UserInfo结构体转换为map，不包含任何业务逻辑判断
+	// 这样做的好处是：
+	// - 不耦合任何具体的业务概念
+	// - 自动包含所有可用字段
+	// - 未来扩展字段时无需修改此方法
+	details := userInfoToMap(userInfo)
+
+	logger.Debugf(ctx, "获取用户详细信息成功: externalIdentity=%s, fieldCount=%d", externalIdentity, len(details))
+	return details
+}
+
+// userInfoToMap 将UserInfo结构体转换为map，完全抽象化实现
+// 使用反射自动提取所有字段，不包含任何业务逻辑
+func userInfoToMap(userInfo *UserInfo) map[string]interface{} {
+	if userInfo == nil {
+		return nil
+	}
+
+	// 使用JSON序列化和反序列化的方式进行转换
+	// 这种方式完全抽象化，不依赖具体的字段名或业务逻辑
+	data, err := json.Marshal(userInfo)
+	if err != nil {
+		return nil
+	}
+
+	var result map[string]interface{}
+	err = json.Unmarshal(data, &result)
+	if err != nil {
+		return nil
+	}
+
+	// 移除值为零值的字段，保持数据的简洁性
+	cleanedResult := make(map[string]interface{})
+	for key, value := range result {
+		if !isZeroValue(value) {
+			cleanedResult[key] = value
+		}
+	}
+
+	return cleanedResult
+}
+
+// isZeroValue 判断是否为零值，用于清理空数据
+func isZeroValue(value interface{}) bool {
+	if value == nil {
+		return true
+	}
+
+	switch v := value.(type) {
+	case string:
+		return v == ""
+	case int, int8, int16, int32, int64:
+		return v == 0
+	case uint, uint8, uint16, uint32, uint64:
+		return v == 0
+	case float32, float64:
+		return v == 0.0
+	case bool:
+		return !v
+	default:
+		return false
+	}
+}
+
 // GetCache 获取缓存管理器（用于控制器）
 func (c *CoursewareIdentityResolver) GetCache() *CoursewareCache {
 	return c.cache

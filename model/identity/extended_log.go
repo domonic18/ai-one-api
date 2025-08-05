@@ -189,16 +189,23 @@ func RecordExtendedLog(ctx context.Context, logId int64, externalUserId string) 
 			return
 		}
 
-		// 3. 尝试从缓存获取用户详细信息
-		var dimensionInfo *DimensionInfo
-		// 注意：由于缓存字段是私有的，我们暂时跳过详细信息的获取
-		// 在实际使用中，可以通过公共方法或接口来获取这些信息
+		// 3. 尝试从身份解析器获取用户详细信息
+		userDetails := resolver.GetUserDetails(asyncCtx, externalUserId)
 
-		// 4. 如果没有详细信息，使用基本信息
-		if dimensionInfo == nil {
+		var dimensionInfo *DimensionInfo
+		if len(userDetails) > 0 {
+			// 使用身份解析器返回的详细信息
+			dimensionInfo = &DimensionInfo{}
+			for key, value := range userDetails {
+				(*dimensionInfo)[key] = value
+			}
+			logger.Debugf(asyncCtx, "获取到用户详细信息: externalUserId=%s, details=%v", externalUserId, userDetails)
+		} else {
+			// 4. 如果没有详细信息，使用基本信息
 			dimensionInfo = &DimensionInfo{
 				"external_user_id": externalUserId, // 抽象化：使用通用的外部用户ID
 			}
+			logger.Debugf(asyncCtx, "未获取到用户详细信息，使用基本信息: externalUserId=%s", externalUserId)
 		}
 
 		// 5. 创建扩展日志

@@ -21,3 +21,10 @@ func (d *DefaultIdentityResolver) ResolveModel(ctx context.Context, externalIden
 	// 不做任何处理，返回原始模型
 	return requestModel
 }
+
+// GetUserDetails 获取用户详细信息
+// 默认实现返回nil，表示无法获取详细信息
+func (d *DefaultIdentityResolver) GetUserDetails(ctx context.Context, externalIdentity string) map[string]interface{} {
+	// 默认实现不提供详细信息
+	return nil
+}
