@@ -29,19 +29,9 @@ func (ExtendedLog) TableName() string {
 	return "extended_logs"
 }
 
-// DimensionInfo 维度信息结构（灵活的JSON格式）
-type DimensionInfo struct {
-	SchoolId    int    `json:"school_id,omitempty"`
-	SchoolName  string `json:"school_name,omitempty"`
-	SubjectId   int    `json:"subject_id,omitempty"`
-	SubjectName string `json:"subject_name,omitempty"`
-	TeacherName string `json:"teacher_name,omitempty"`
-
-	// 可扩展其他维度信息
-	Department string `json:"department,omitempty"` // 部门（企业场景）
-	Project    string `json:"project,omitempty"`    // 项目（项目场景）
-	Region     string `json:"region,omitempty"`     // 地区
-}
+// DimensionInfo 维度信息结构（完全抽象化的JSON格式）
+// 使用map[string]interface{}来存储任意维度信息，不耦合具体业务逻辑
+type DimensionInfo map[string]interface{}
 
 // CreateExtendedLog 创建扩展日志
 func CreateExtendedLog(ctx context.Context, logId int64, externalUserId string, userGroup string, dimensionInfo *DimensionInfo) (*ExtendedLog, error) {
@@ -160,7 +150,7 @@ func DeleteExtendedLogsByLogIds(ctx context.Context, logIds []int64) error {
 
 // GetDimensionInfo 获取维度信息
 func (el *ExtendedLog) GetDimensionInfo() (*DimensionInfo, error) {
-	if el.DimensionInfo == "" {
+	if el.DimensionInfo == "" || el.DimensionInfo == "null" {
 		return nil, nil
 	}
 
@@ -207,7 +197,7 @@ func RecordExtendedLog(ctx context.Context, logId int64, externalUserId string) 
 		// 4. 如果没有详细信息，使用基本信息
 		if dimensionInfo == nil {
 			dimensionInfo = &DimensionInfo{
-				TeacherName: externalUserId, // 使用用户ID作为教师名称
+				"external_user_id": externalUserId, // 抽象化：使用通用的外部用户ID
 			}
 		}
 
