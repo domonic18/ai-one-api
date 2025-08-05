@@ -1,6 +1,6 @@
-import React, {useEffect, useState} from 'react';
-import {useTranslation} from 'react-i18next';
-import {Card, Grid, Statistic, Segment, Label, Icon, Table, Message} from 'semantic-ui-react';
+import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Card, Grid, Statistic, Segment, Label, Icon, Table, Message, Button, Dropdown } from 'semantic-ui-react';
 import {
   Bar,
   BarChart,
@@ -15,22 +15,46 @@ import {
   PieChart,
   Pie,
   Cell,
+  Area,
+  AreaChart,
 } from 'recharts';
 import axios from 'axios';
 import { API } from '../../helpers';
-// 样式已内联化，移除CSS文件引用
+import { CHANNEL_OPTIONS } from '../../constants/channel.constants';
 
-// 在 Dashboard 组件内添加自定义配置
+// 科技感配色方案 - 专业配色，不超过三种主色
+const techColorScheme = {
+  primary: '#1E40AF',      // 深蓝色 - 主色调
+  secondary: '#10B981',    // 翠绿色 - 成功/增长
+  accent: '#F59E0B',       // 琥珀色 - 警告/重要
+  background: '#F8FAFC',   // 浅灰背景
+  surface: '#FFFFFF',      // 白色表面
+  text: {
+    primary: '#1F2937',    // 主要文字
+    secondary: '#6B7280',  // 次要文字
+    muted: '#9CA3AF',      // 弱化文字
+  },
+  chart: {
+    primary: '#1E40AF',    // 主图表色
+    secondary: '#10B981',  // 次图表色
+    tertiary: '#F59E0B',   // 第三图表色
+    success: '#059669',    // 成功色
+    warning: '#D97706',    // 警告色
+    error: '#DC2626',      // 错误色
+  }
+};
+
+// 图表配置
 const chartConfig = {
   lineChart: {
     style: {
-      background: '#fff',
-      borderRadius: '8px',
+      background: techColorScheme.surface,
+      borderRadius: '12px',
     },
     line: {
-      strokeWidth: 2,
+      strokeWidth: 3,
       dot: false,
-      activeDot: { r: 4 },
+      activeDot: { r: 6, fill: techColorScheme.primary },
     },
     grid: {
       vertical: false,
@@ -38,22 +62,34 @@ const chartConfig = {
       opacity: 0.1,
     },
   },
+  areaChart: {
+    style: {
+      background: techColorScheme.surface,
+      borderRadius: '12px',
+    },
+    area: {
+      opacity: 0.1,
+    },
+    line: {
+      strokeWidth: 2,
+      dot: false,
+      activeDot: { r: 4 },
+    },
+  },
   colors: {
-    requests: '#4318FF',
-    quota: '#00B5D8',
-    tokens: '#6C63FF',
+    requests: techColorScheme.chart.primary,
+    quota: techColorScheme.chart.secondary,
+    tokens: techColorScheme.chart.tertiary,
+    success: techColorScheme.chart.success,
+    error: techColorScheme.chart.error,
   },
   barColors: [
-    '#4318FF', // 深紫色
-    '#00B5D8', // 青色
-    '#6C63FF', // 紫色
-    '#05CD99', // 绿色
-    '#FFB547', // 橙色
-    '#FF5E7D', // 粉色
-    '#41B883', // 翠绿
-    '#7983FF', // 淡紫
-    '#FF8F6B', // 珊瑚色
-    '#49BEFF', // 天蓝
+    techColorScheme.chart.primary,
+    techColorScheme.chart.secondary,
+    techColorScheme.chart.tertiary,
+    techColorScheme.chart.success,
+    techColorScheme.chart.warning,
+    techColorScheme.chart.error,
   ],
 };
 
@@ -75,22 +111,25 @@ const Dashboard = () => {
   });
   
   const [channelStats, setChannelStats] = useState([]);
-  const [recentLogs, setRecentLogs] = useState([]);
-  const [systemStatus, setSystemStatus] = useState({
-    status: 'healthy',
-    message: '系统运行正常',
+  const [apiMetrics, setApiMetrics] = useState({
+    totalRequests: 0,
+    successRate: 0,
+    avgResponseTime: 0,
+    errorRate: 0,
   });
+  const [timeRange, setTimeRange] = useState('7d'); // 7d, 30d, 90d
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchDashboardData();
     fetchSystemStats();
     fetchChannelStats();
-    fetchRecentLogs();
-  }, []);
+    fetchApiMetrics();
+  }, [timeRange]);
 
   const fetchDashboardData = async () => {
     try {
-      const response = await axios.get('/api/user/dashboard');
+      const response = await API.get('/api/user/dashboard');
       if (response.data.success) {
         const dashboardData = response.data.data || [];
         setData(dashboardData);
@@ -137,11 +176,13 @@ const Dashboard = () => {
       if (response.data.success) {
         const channels = response.data.data || [];
         const channelStatsData = channels.map(channel => ({
+          id: channel.id,
           name: channel.name || 'Unknown',
           type: channel.type,
           status: channel.status,
           balance: channel.balance || 0,
           responseTime: channel.response_time || 0,
+          requestCount: channel.used_quota || 0, // 使用已用配额作为请求量指标
         }));
         setChannelStats(channelStatsData);
       }
@@ -150,14 +191,27 @@ const Dashboard = () => {
     }
   };
 
-  const fetchRecentLogs = async () => {
+  const fetchApiMetrics = async () => {
     try {
-      const response = await API.get('/api/log?p=1&size=10');
-      if (response.data.success) {
-        setRecentLogs(response.data.data || []);
-      }
+      // 从dashboard数据计算API指标
+      const totalRequests = data.reduce((sum, item) => sum + (item.RequestCount || 0), 0);
+      const totalTokens = data.reduce((sum, item) => sum + (item.PromptTokens || 0) + (item.CompletionTokens || 0), 0);
+      
+      // 模拟成功率 - 实际项目中应该从后端获取
+      const successRate = 98.5;
+      const avgResponseTime = 1250;
+      const errorRate = 100 - successRate;
+
+      setApiMetrics({
+        totalRequests,
+        successRate,
+        avgResponseTime,
+        errorRate,
+      });
+      setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch recent logs:', error);
+      console.error('Failed to fetch API metrics:', error);
+      setLoading(false);
     }
   };
 
@@ -176,13 +230,13 @@ const Dashboard = () => {
 
     const summary = {
       todayRequests: todayData.reduce(
-        (sum, item) => sum + item.RequestCount,
+        (sum, item) => sum + (item.RequestCount || 0),
         0
       ),
       todayQuota:
-        todayData.reduce((sum, item) => sum + item.Quota, 0) / 1000000,
+        todayData.reduce((sum, item) => sum + (item.Quota || 0), 0) / 1000000,
       todayTokens: todayData.reduce(
-        (sum, item) => sum + item.PromptTokens + item.CompletionTokens,
+        (sum, item) => sum + (item.PromptTokens || 0) + (item.CompletionTokens || 0),
         0
       ),
     };
@@ -190,143 +244,120 @@ const Dashboard = () => {
     setSummaryData(summary);
   };
 
-  // 处理数据以供折线图使用，补充缺失的日期
-  const processTimeSeriesData = () => {
-    const dailyData = {};
-
-    // 获取日期范围
-    const dates = data.map((item) => item.Day);
-    const maxDate = new Date(); // 总是使用今天作为最后一天
-    let minDate =
-      dates.length > 0
-        ? new Date(Math.min(...dates.map((d) => new Date(d))))
-        : new Date();
-
-    // 确保至少显示7天的数据
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // -6是因为包含今天
-    if (minDate > sevenDaysAgo) {
-      minDate = sevenDaysAgo;
+  // 处理API请求趋势数据
+  const processApiRequestData = () => {
+    if (!Array.isArray(data) || data.length === 0) {
+      return [];
     }
 
-    // 生成所有日期
-    for (let d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
-      dailyData[dateStr] = {
-        date: dateStr,
-        requests: 0,
-        quota: 0,
-        tokens: 0,
-      };
-    }
-
-    // 填充实际数据
-    data.forEach((item) => {
-      dailyData[item.Day].requests += item.RequestCount;
-      dailyData[item.Day].quota += item.Quota / 1000000;
-      dailyData[item.Day].tokens += item.PromptTokens + item.CompletionTokens;
+    // 按日期分组数据
+    const groupedData = {};
+    data.forEach(item => {
+      const date = item.Day;
+      if (!groupedData[date]) {
+        groupedData[date] = {
+          date,
+          requests: 0,
+          tokens: 0,
+          quota: 0,
+        };
+      }
+      groupedData[date].requests += item.RequestCount || 0;
+      groupedData[date].tokens += (item.PromptTokens || 0) + (item.CompletionTokens || 0);
+      groupedData[date].quota += item.Quota || 0;
     });
 
-    return Object.values(dailyData).sort((a, b) =>
-      a.date.localeCompare(b.date)
-    );
+    return Object.values(groupedData).sort((a, b) => new Date(a.date) - new Date(b.date));
   };
 
-  // 处理数据以供堆叠柱状图使用
-  const processModelData = () => {
-    const timeData = {};
-
-    // 获取日期范围
-    const dates = data.map((item) => item.Day);
-    const maxDate = new Date(); // 总是使用今天作为最后一天
-    let minDate =
-      dates.length > 0
-        ? new Date(Math.min(...dates.map((d) => new Date(d))))
-        : new Date();
-
-    // 确保至少显示7天的数据
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6); // -6是因为包含今天
-    if (minDate > sevenDaysAgo) {
-      minDate = sevenDaysAgo;
+  // 处理渠道使用分布数据
+  const processChannelUsageData = () => {
+    if (!Array.isArray(channelStats) || channelStats.length === 0) {
+      return [];
     }
 
-    // 生成所有日期
-    for (let d = new Date(minDate); d <= maxDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split('T')[0];
-      timeData[dateStr] = {
-        date: dateStr,
-      };
-
-      // 初始化所有模型的数据为0
-      const models = [...new Set(data.map((item) => item.ModelName))];
-      models.forEach((model) => {
-        timeData[dateStr][model] = 0;
-      });
-    }
-
-    // 填充实际数据
-    data.forEach((item) => {
-      timeData[item.Day][item.ModelName] =
-        item.PromptTokens + item.CompletionTokens;
+    const usageData = {};
+    channelStats.forEach(channel => {
+      if (channel.status === 1) { // 只统计活跃渠道
+        const channelTypeName = getChannelTypeName(channel.type);
+        usageData[channelTypeName] = (usageData[channelTypeName] || 0) + channel.requestCount;
+      }
     });
-
-    return Object.values(timeData).sort((a, b) => a.date.localeCompare(b.date));
+    
+    return Object.entries(usageData)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8); // 只显示前8个
   };
 
-  // 获取所有唯一的模型名称
-  const getUniqueModels = () => {
-    return [...new Set(data.map((item) => item.ModelName))];
+  // 处理渠道性能数据
+  const processChannelPerformanceData = () => {
+    if (!Array.isArray(channelStats) || channelStats.length === 0) {
+      return [];
+    }
+
+    return channelStats
+      .filter(channel => channel.status === 1 && channel.requestCount > 0)
+      .map(channel => ({
+        name: channel.name,
+        type: getChannelTypeName(channel.type),
+        responseTime: channel.responseTime,
+        requestCount: channel.requestCount,
+        successRate: Math.floor(Math.random() * 10) + 90, // 模拟成功率
+      }))
+      .sort((a, b) => b.requestCount - a.requestCount)
+      .slice(0, 10); // 只显示前10个
   };
 
-  const timeSeriesData = processTimeSeriesData();
-  const modelData = processModelData();
-  const models = getUniqueModels();
+  // 获取渠道类型名称
+  const getChannelTypeName = (typeId) => {
+    const channelOption = CHANNEL_OPTIONS.find(option => option.value === typeId);
+    return channelOption ? channelOption.text : `类型${typeId}`;
+  };
 
-  // 生成随机颜色
-  const getRandomColor = (index) => {
-    return chartConfig.barColors[index % chartConfig.barColors.length];
+  // 获取渠道类型颜色
+  const getChannelTypeColor = (typeId) => {
+    const channelOption = CHANNEL_OPTIONS.find(option => option.value === typeId);
+    if (!channelOption) return techColorScheme.text.muted;
+    
+    const colorMap = {
+      'green': techColorScheme.chart.success,
+      'blue': techColorScheme.chart.primary,
+      'orange': techColorScheme.chart.warning,
+      'red': techColorScheme.chart.error,
+      'purple': techColorScheme.chart.tertiary,
+      'teal': techColorScheme.chart.secondary,
+      'black': techColorScheme.text.primary,
+      'olive': techColorScheme.chart.success,
+      'brown': techColorScheme.chart.warning,
+      'violet': techColorScheme.chart.tertiary,
+      'pink': techColorScheme.chart.error,
+    };
+    
+    return colorMap[channelOption.color] || techColorScheme.text.muted;
   };
 
   // 获取渠道状态标签
   const getChannelStatusLabel = (status) => {
     switch (status) {
       case 1:
-        return <Label color="green">已启用</Label>;
+        return <Label color="green" size="tiny">已启用</Label>;
       case 2:
-        return <Label color="red">已禁用</Label>;
+        return <Label color="red" size="tiny">已禁用</Label>;
+      case 3:
+        return <Label color="orange" size="tiny">自动禁用</Label>;
       default:
-        return <Label color="grey">未知</Label>;
+        return <Label color="grey" size="tiny">未知</Label>;
     }
   };
 
-  // 获取渠道类型颜色
-  const getChannelTypeColor = (type) => {
-    const typeColors = {
-      'openai': 'blue',
-      'anthropic': 'purple',
-      'google': 'red',
-      'azure': 'teal',
-      'baidu': 'orange',
-      'ali': 'green',
-      'default': 'grey',
-    };
-    return typeColors[type] || typeColors.default;
+  // 格式化响应时间
+  const formatResponseTime = (time) => {
+    if (time < 1000) return `${time}ms`;
+    return `${(time / 1000).toFixed(1)}s`;
   };
 
-  // 处理渠道数据用于饼图
-  const processChannelDataForPie = () => {
-    const typeCount = {};
-    channelStats.forEach(channel => {
-      typeCount[channel.type] = (typeCount[channel.type] || 0) + 1;
-    });
-    return Object.entries(typeCount).map(([type, count]) => ({
-      name: type,
-      value: count,
-    }));
-  };
-
-  // 添加一个日期格式化函数
+  // 格式化日期
   const formatDate = (dateStr) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('zh-CN', {
@@ -335,486 +366,607 @@ const Dashboard = () => {
     });
   };
 
-  // 修改所有 XAxis 配置
-  const xAxisConfig = {
-    dataKey: 'date',
-    axisLine: false,
-    tickLine: false,
-    tick: {
-      fontSize: 12,
-      fill: '#A3AED0',
-      textAnchor: 'middle', // 文本居中对齐
-    },
-    tickFormatter: formatDate,
-    interval: 0,
-    minTickGap: 5,
-    padding: { left: 30, right: 30 }, // 增加两侧的内边距，确保首尾标签完整显示
-  };
+  // 时间范围选项
+  const timeRangeOptions = [
+    { key: '7d', text: '最近7天', value: '7d' },
+    { key: '30d', text: '最近30天', value: '30d' },
+    { key: '90d', text: '最近90天', value: '90d' },
+  ];
+
+  const timeSeriesData = processApiRequestData();
+  const channelUsageData = processChannelUsageData();
+  const channelPerformanceData = processChannelPerformanceData();
+
+  if (loading) {
+    return (
+      <div style={{
+        padding: '24px',
+        backgroundColor: techColorScheme.background,
+        minHeight: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
+        <Message info>
+          <Message.Header>加载中...</Message.Header>
+          <p>正在获取仪表板数据</p>
+        </Message>
+      </div>
+    );
+  }
 
   return (
     <div style={{
-      padding: '20px 24px 40px',
-      backgroundColor: '#ffffff',
-      marginTop: '-15px',
-      maxWidth: '1600px',
-      marginLeft: 'auto',
-      marginRight: 'auto'
+      padding: '24px',
+      backgroundColor: techColorScheme.background,
+      minHeight: '100vh',
+      maxWidth: '1400px',
+      margin: '0 auto'
     }}>
-      {/* 系统状态概览 */}
-      <Grid columns={5} stackable style={{ marginBottom: '20px' }}>
+      {/* 顶部统计卡片 - 可点击跳转 */}
+      <Grid columns={5} stackable style={{ marginBottom: '32px' }}>
         <Grid.Column>
-          <Card fluid>
-            <Card.Content textAlign="center">
-              <Statistic>
-                <Statistic.Value>
-                  <Icon name="users" color="blue" />
-                  {systemStats.totalUsers}
-                </Statistic.Value>
-                <Statistic.Label>总用户数</Statistic.Label>
-              </Statistic>
-            </Card.Content>
-          </Card>
-        </Grid.Column>
-        <Grid.Column>
-          <Card fluid>
-            <Card.Content textAlign="center">
-              <Statistic>
-                <Statistic.Value>
-                  <Icon name="key" color="green" />
-                  {systemStats.totalTokens}
-                </Statistic.Value>
-                <Statistic.Label>总令牌数</Statistic.Label>
-              </Statistic>
-            </Card.Content>
-          </Card>
-        </Grid.Column>
-        <Grid.Column>
-          <Card fluid>
-            <Card.Content textAlign="center">
-              <Statistic>
-                <Statistic.Value>
-                  <Icon name="sitemap" color="purple" />
-                  {systemStats.totalChannels}
-                </Statistic.Value>
-                <Statistic.Label>总渠道数</Statistic.Label>
-              </Statistic>
-            </Card.Content>
-          </Card>
-        </Grid.Column>
-        <Grid.Column>
-          <Card fluid>
-            <Card.Content textAlign="center">
-              <Statistic>
-                <Statistic.Value>
-                  <Icon name="check circle" color="teal" />
-                  {systemStats.activeChannels}
-                </Statistic.Value>
-                <Statistic.Label>活跃渠道</Statistic.Label>
-              </Statistic>
-            </Card.Content>
-          </Card>
-        </Grid.Column>
-        <Grid.Column>
-          <Card fluid>
-            <Card.Content textAlign="center">
-              <Statistic>
-                <Statistic.Value>
-                  <Icon name="users" color="orange" />
-                  {systemStats.totalGroups}
-                </Statistic.Value>
-                <Statistic.Label>用户组数</Statistic.Label>
-              </Statistic>
-            </Card.Content>
-          </Card>
-        </Grid.Column>
-      </Grid>
-
-      {/* 三个并排的折线图 */}
-      <Grid columns={3} stackable style={{ marginBottom: '1rem' }}>
-        <Grid.Column>
-          <Card fluid style={{
-            height: '100%',
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-            border: 'none',
-            borderRadius: '16px',
-            padding: '8px'
-          }}>
-            <Card.Content>
-              <Card.Header style={{
-                color: '#2B3674',
-                fontSize: '1.2em',
-                marginBottom: '15px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontWeight: '600',
-                gap: '12px'
-              }}>
-                {t('dashboard.charts.requests.title')}
-                {/* <span className='stat-value'>{summaryData.todayRequests}</span> */}
-              </Card.Header>
-              <div style={{
-                marginTop: '2px',
-                padding: '16px',
-                backgroundColor: 'white',
-                borderRadius: '12px'
-              }}>
-                <ResponsiveContainer
-                  width='100%'
-                  height={120}
-                  margin={{ left: 10, right: 10 }} // 调整容器边距
-                >
-                  <LineChart data={timeSeriesData}>
-                    <CartesianGrid
-                      strokeDasharray='3 3'
-                      vertical={chartConfig.lineChart.grid.vertical}
-                      horizontal={chartConfig.lineChart.grid.horizontal}
-                      opacity={chartConfig.lineChart.grid.opacity}
-                    />
-                    <XAxis {...xAxisConfig} />
-                    <YAxis hide={true} />
-                    <Tooltip
-                      contentStyle={{
-                        background: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      }}
-                      formatter={(value) => [
-                        value,
-                        t('dashboard.charts.requests.tooltip'),
-                      ]}
-                      labelFormatter={(label) =>
-                        `${t(
-                          'dashboard.statistics.tooltip.date'
-                        )}: ${formatDate(label)}`
-                      }
-                    />
-                    <Line
-                      type='monotone'
-                      dataKey='requests'
-                      stroke={chartConfig.colors.requests}
-                      strokeWidth={chartConfig.lineChart.line.strokeWidth}
-                      dot={chartConfig.lineChart.line.dot}
-                      activeDot={chartConfig.lineChart.line.activeDot}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+          <Card 
+            fluid 
+            style={{
+              background: `linear-gradient(135deg, ${techColorScheme.primary} 0%, #3B82F6 100%)`,
+              borderRadius: '16px',
+              border: 'none',
+              boxShadow: '0 4px 20px rgba(30, 64, 175, 0.15)',
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            }}
+            onClick={() => window.location.href = '/user'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 25px rgba(30, 64, 175, 0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(30, 64, 175, 0.15)';
+            }}
+          >
+            <Card.Content textAlign="center" style={{ padding: '24px 16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <Icon name="users" size="large" style={{ color: 'rgba(255,255,255,0.9)' }} />
+              </div>
+              <div style={{ color: 'white', fontSize: '28px', fontWeight: '700', marginBottom: '4px' }}>
+                {systemStats.totalUsers.toLocaleString()}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '500' }}>
+                总用户数
               </div>
             </Card.Content>
           </Card>
         </Grid.Column>
-
+        
         <Grid.Column>
-          <Card fluid style={{
-            height: '100%',
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-            border: 'none',
-            borderRadius: '16px',
-            padding: '8px'
-          }}>
-            <Card.Content>
-              <Card.Header style={{
-                color: '#2B3674',
-                fontSize: '1.2em',
-                marginBottom: '15px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontWeight: '600',
-                gap: '12px'
-              }}>
-                {t('dashboard.charts.quota.title')}
-                {/* <span className='stat-value'>
-                  ${summaryData.todayQuota.toFixed(3)}
-                </span> */}
-              </Card.Header>
-              <div style={{
-                marginTop: '2px',
-                padding: '16px',
-                backgroundColor: 'white',
-                borderRadius: '12px'
-              }}>
-                <ResponsiveContainer
-                  width='100%'
-                  height={120}
-                  margin={{ left: 10, right: 10 }} // 调整容器边距
-                >
-                  <LineChart data={timeSeriesData}>
-                    <CartesianGrid
-                      strokeDasharray='3 3'
-                      vertical={chartConfig.lineChart.grid.vertical}
-                      horizontal={chartConfig.lineChart.grid.horizontal}
-                      opacity={chartConfig.lineChart.grid.opacity}
-                    />
-                    <XAxis {...xAxisConfig} />
-                    <YAxis hide={true} />
-                    <Tooltip
-                      contentStyle={{
-                        background: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      }}
-                      formatter={(value) => [
-                        value.toFixed(6),
-                        t('dashboard.charts.quota.tooltip'),
-                      ]}
-                      labelFormatter={(label) =>
-                        `${t(
-                          'dashboard.statistics.tooltip.date'
-                        )}: ${formatDate(label)}`
-                      }
-                    />
-                    <Line
-                      type='monotone'
-                      dataKey='quota'
-                      stroke={chartConfig.colors.quota}
-                      strokeWidth={chartConfig.lineChart.line.strokeWidth}
-                      dot={chartConfig.lineChart.line.dot}
-                      activeDot={chartConfig.lineChart.line.activeDot}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+          <Card 
+            fluid 
+            style={{
+              background: `linear-gradient(135deg, ${techColorScheme.secondary} 0%, #34D399 100%)`,
+              borderRadius: '16px',
+              border: 'none',
+              boxShadow: '0 4px 20px rgba(16, 185, 129, 0.15)',
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            }}
+            onClick={() => window.location.href = '/token'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 25px rgba(16, 185, 129, 0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(16, 185, 129, 0.15)';
+            }}
+          >
+            <Card.Content textAlign="center" style={{ padding: '24px 16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <Icon name="key" size="large" style={{ color: 'rgba(255,255,255,0.9)' }} />
+              </div>
+              <div style={{ color: 'white', fontSize: '28px', fontWeight: '700', marginBottom: '4px' }}>
+                {systemStats.totalTokens.toLocaleString()}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '500' }}>
+                总令牌数
               </div>
             </Card.Content>
           </Card>
         </Grid.Column>
-
+        
         <Grid.Column>
-          <Card fluid style={{
-            height: '100%',
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-            border: 'none',
-            borderRadius: '16px',
-            padding: '8px'
-          }}>
-            <Card.Content>
-              <Card.Header style={{
-                color: '#2B3674',
-                fontSize: '1.2em',
-                marginBottom: '15px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                fontWeight: '600',
-                gap: '12px'
-              }}>
-                {t('dashboard.charts.tokens.title')}
-                {/* <span className='stat-value'>{summaryData.todayTokens}</span> */}
-              </Card.Header>
-              <div style={{
-                marginTop: '2px',
-                padding: '16px',
-                backgroundColor: 'white',
-                borderRadius: '12px'
-              }}>
-                <ResponsiveContainer
-                  width='100%'
-                  height={120}
-                  margin={{ left: 10, right: 10 }} // 调整容器边距
-                >
-                  <LineChart data={timeSeriesData}>
-                    <CartesianGrid
-                      strokeDasharray='3 3'
-                      vertical={chartConfig.lineChart.grid.vertical}
-                      horizontal={chartConfig.lineChart.grid.horizontal}
-                      opacity={chartConfig.lineChart.grid.opacity}
-                    />
-                    <XAxis {...xAxisConfig} />
-                    <YAxis hide={true} />
-                    <Tooltip
-                      contentStyle={{
-                        background: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      }}
-                      formatter={(value) => [
-                        value,
-                        t('dashboard.charts.tokens.tooltip'),
-                      ]}
-                      labelFormatter={(label) =>
-                        `${t(
-                          'dashboard.statistics.tooltip.date'
-                        )}: ${formatDate(label)}`
-                      }
-                    />
-                    <Line
-                      type='monotone'
-                      dataKey='tokens'
-                      stroke={chartConfig.colors.tokens}
-                      strokeWidth={chartConfig.lineChart.line.strokeWidth}
-                      dot={chartConfig.lineChart.line.dot}
-                      activeDot={chartConfig.lineChart.line.activeDot}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+          <Card 
+            fluid 
+            style={{
+              background: `linear-gradient(135deg, ${techColorScheme.accent} 0%, #FBBF24 100%)`,
+              borderRadius: '16px',
+              border: 'none',
+              boxShadow: '0 4px 20px rgba(245, 158, 11, 0.15)',
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            }}
+            onClick={() => window.location.href = '/channel'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 25px rgba(245, 158, 11, 0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(245, 158, 11, 0.15)';
+            }}
+          >
+            <Card.Content textAlign="center" style={{ padding: '24px 16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <Icon name="sitemap" size="large" style={{ color: 'rgba(255,255,255,0.9)' }} />
+              </div>
+              <div style={{ color: 'white', fontSize: '28px', fontWeight: '700', marginBottom: '4px' }}>
+                {systemStats.totalChannels}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '500' }}>
+                总渠道数
+              </div>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+        
+        <Grid.Column>
+          <Card 
+            fluid 
+            style={{
+              background: `linear-gradient(135deg, ${techColorScheme.chart.success} 0%, #10B981 100%)`,
+              borderRadius: '16px',
+              border: 'none',
+              boxShadow: '0 4px 20px rgba(5, 150, 105, 0.15)',
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            }}
+            onClick={() => window.location.href = '/channel'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 25px rgba(5, 150, 105, 0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(5, 150, 105, 0.15)';
+            }}
+          >
+            <Card.Content textAlign="center" style={{ padding: '24px 16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <Icon name="check circle" size="large" style={{ color: 'rgba(255,255,255,0.9)' }} />
+              </div>
+              <div style={{ color: 'white', fontSize: '28px', fontWeight: '700', marginBottom: '4px' }}>
+                {systemStats.activeChannels}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '500' }}>
+                活跃渠道
+              </div>
+            </Card.Content>
+          </Card>
+        </Grid.Column>
+        
+        <Grid.Column>
+          <Card 
+            fluid 
+            style={{
+              background: `linear-gradient(135deg, ${techColorScheme.chart.warning} 0%, #F59E0B 100%)`,
+              borderRadius: '16px',
+              border: 'none',
+              boxShadow: '0 4px 20px rgba(217, 119, 6, 0.15)',
+              cursor: 'pointer',
+              transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+            }}
+            onClick={() => window.location.href = '/group'}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 25px rgba(217, 119, 6, 0.25)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(217, 119, 6, 0.15)';
+            }}
+          >
+            <Card.Content textAlign="center" style={{ padding: '24px 16px' }}>
+              <div style={{ marginBottom: '12px' }}>
+                <Icon name="users" size="large" style={{ color: 'rgba(255,255,255,0.9)' }} />
+              </div>
+              <div style={{ color: 'white', fontSize: '28px', fontWeight: '700', marginBottom: '4px' }}>
+                {systemStats.totalGroups}
+              </div>
+              <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', fontWeight: '500' }}>
+                用户组数
               </div>
             </Card.Content>
           </Card>
         </Grid.Column>
       </Grid>
 
-      {/* 模型使用统计 */}
+      {/* API请求趋势图 - 使用真实数据 */}
       <Card fluid style={{
-        height: '100%',
-        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-        border: 'none',
+        marginBottom: '24px',
         borderRadius: '16px',
-        padding: '8px'
+        border: 'none',
+        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
       }}>
-        <Card.Content>
-          <Card.Header style={{
-            color: '#2B3674',
-            fontSize: '1.2em',
-            marginBottom: '15px',
+        <Card.Content style={{ padding: '24px' }}>
+          <div style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            fontWeight: '600',
-            gap: '12px'
-          }}>{t('dashboard.statistics.title')}</Card.Header>
-          <div style={{
-            marginTop: '2px',
-            padding: '16px',
-            backgroundColor: 'white',
-            borderRadius: '12px'
+            marginBottom: '24px'
           }}>
-            <ResponsiveContainer width='100%' height={300}>
-              <BarChart data={modelData}>
-                <CartesianGrid
-                  strokeDasharray='3 3'
-                  vertical={false}
-                  opacity={0.1}
-                />
-                <XAxis {...xAxisConfig} />
-                <YAxis
+            <div>
+              <h3 style={{
+                color: techColorScheme.text.primary,
+                fontSize: '20px',
+                fontWeight: '600',
+                margin: '0 0 4px 0'
+              }}>
+                API请求趋势
+              </h3>
+              <p style={{
+                color: techColorScheme.text.secondary,
+                fontSize: '14px',
+                margin: '0'
+              }}>
+                监控OneAPI系统的请求量、令牌使用量和配额消耗
+              </p>
+            </div>
+            <Dropdown
+              value={timeRange}
+              options={timeRangeOptions}
+              onChange={(e, { value }) => setTimeRange(value)}
+              style={{ minWidth: '120px' }}
+            />
+          </div>
+          
+          {timeSeriesData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <AreaChart data={timeSeriesData}>
+                <defs>
+                  <linearGradient id="requestsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={techColorScheme.chart.primary} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={techColorScheme.chart.primary} stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="tokensGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={techColorScheme.chart.secondary} stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor={techColorScheme.chart.secondary} stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                <XAxis 
+                  dataKey="date" 
+                  tickFormatter={formatDate}
+                  tick={{ fontSize: 12, fill: techColorScheme.text.secondary }}
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fontSize: 12, fill: '#A3AED0' }}
+                />
+                <YAxis 
+                  yAxisId="left"
+                  tick={{ fontSize: 12, fill: techColorScheme.text.secondary }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis 
+                  yAxisId="right" 
+                  orientation="right"
+                  tick={{ fontSize: 12, fill: techColorScheme.text.secondary }}
+                  axisLine={false}
+                  tickLine={false}
                 />
                 <Tooltip
                   contentStyle={{
-                    background: '#fff',
+                    background: techColorScheme.surface,
                     border: 'none',
-                    borderRadius: '4px',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                   }}
-                  labelFormatter={(label) =>
-                    `${t('dashboard.statistics.tooltip.date')}: ${formatDate(
-                      label
-                    )}`
-                  }
+                  labelFormatter={(label) => `日期: ${formatDate(label)}`}
                 />
-                <Legend
-                  wrapperStyle={{
-                    paddingTop: '20px',
-                  }}
+                <Legend />
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="requests"
+                  stroke={techColorScheme.chart.primary}
+                  fill="url(#requestsGradient)"
+                  name="请求量"
+                  strokeWidth={2}
                 />
-                {models.map((model, index) => (
-                  <Bar
-                    key={model}
-                    dataKey={model}
-                    stackId='a'
-                    fill={getRandomColor(index)}
-                    name={model}
-                    radius={[4, 4, 0, 0]}
-                  />
-                ))}
-              </BarChart>
+                <Area
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="tokens"
+                  stroke={techColorScheme.chart.secondary}
+                  fill="url(#tokensGradient)"
+                  name="令牌数"
+                  strokeWidth={2}
+                />
+              </AreaChart>
             </ResponsiveContainer>
-          </div>
+          ) : (
+            <div style={{
+              height: '400px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              color: techColorScheme.text.secondary,
+              fontSize: '16px'
+            }}>
+              暂无数据
+            </div>
+          )}
         </Card.Content>
       </Card>
 
-      {/* 渠道统计和最近日志 */}
-      <Grid columns={2} stackable style={{ marginTop: '20px' }}>
+      {/* 渠道使用分布和性能统计 - 两列布局 */}
+      <Grid columns={2} stackable style={{ marginBottom: '24px' }}>
         <Grid.Column>
-          <Card fluid>
-            <Card.Content>
-              <Card.Header>渠道类型分布</Card.Header>
-              <div style={{ height: '300px' }}>
-                <ResponsiveContainer width='100%' height='100%'>
+          <Card fluid style={{
+            borderRadius: '16px',
+            border: 'none',
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+            height: '100%'
+          }}>
+            <Card.Content style={{ padding: '24px' }}>
+              <h3 style={{
+                color: techColorScheme.text.primary,
+                fontSize: '18px',
+                fontWeight: '600',
+                margin: '0 0 16px 0'
+              }}>
+                渠道使用分布
+              </h3>
+              <p style={{
+                color: techColorScheme.text.secondary,
+                fontSize: '14px',
+                margin: '0 0 20px 0'
+              }}>
+                各渠道类型的请求量分布情况
+              </p>
+              
+              {channelUsageData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
                     <Pie
-                      data={processChannelDataForPie()}
-                      cx='50%'
-                      cy='50%'
+                      data={channelUsageData}
+                      cx="50%"
+                      cy="50%"
                       labelLine={false}
                       label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill='#8884d8'
-                      dataKey='value'
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
                     >
-                      {processChannelDataForPie().map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={getRandomColor(index)} />
+                      {channelUsageData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={chartConfig.barColors[index % chartConfig.barColors.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip
+                      contentStyle={{
+                        background: techColorScheme.surface,
+                        border: 'none',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
-              </div>
+              ) : (
+                <div style={{
+                  height: '300px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  color: techColorScheme.text.secondary,
+                  fontSize: '16px'
+                }}>
+                  暂无渠道使用数据
+                </div>
+              )}
             </Card.Content>
           </Card>
         </Grid.Column>
+        
         <Grid.Column>
-          <Card fluid>
-            <Card.Content>
-              <Card.Header>最近系统日志</Card.Header>
-              <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                {recentLogs.length > 0 ? (
-                  recentLogs.map((log, index) => (
-                    <Segment key={index} size='mini' style={{ margin: '5px 0' }}>
-                      <div style={{ fontSize: '12px', color: '#666' }}>
-                        {new Date(log.created_at).toLocaleString()}
-                      </div>
-                      <div style={{ fontSize: '14px', marginTop: '5px' }}>
-                        {log.content}
-                      </div>
-                    </Segment>
-                  ))
-                ) : (
-                  <Message info size='mini'>
-                    暂无日志记录
-                  </Message>
-                )}
-              </div>
+          <Card fluid style={{
+            borderRadius: '16px',
+            border: 'none',
+            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+            height: '100%'
+          }}>
+            <Card.Content style={{ padding: '24px' }}>
+              <h3 style={{
+                color: techColorScheme.text.primary,
+                fontSize: '18px',
+                fontWeight: '600',
+                margin: '0 0 16px 0'
+              }}>
+                渠道性能排行
+              </h3>
+              <p style={{
+                color: techColorScheme.text.secondary,
+                fontSize: '14px',
+                margin: '0 0 20px 0'
+              }}>
+                按请求量排序的渠道性能统计
+              </p>
+              
+              {channelPerformanceData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={channelPerformanceData} layout="horizontal">
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
+                    <XAxis type="number" tick={{ fontSize: 12, fill: techColorScheme.text.secondary }} />
+                    <YAxis 
+                      type="category" 
+                      dataKey="name" 
+                      tick={{ fontSize: 12, fill: techColorScheme.text.secondary }}
+                      width={80}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        background: techColorScheme.surface,
+                        border: 'none',
+                        borderRadius: '8px',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
+                      }}
+                      formatter={(value, name) => [value, name === 'requestCount' ? '请求量' : '响应时间(ms)']}
+                    />
+                    <Bar dataKey="requestCount" fill={techColorScheme.chart.primary} radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div style={{
+                  height: '300px',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  color: techColorScheme.text.secondary,
+                  fontSize: '16px'
+                }}>
+                  暂无渠道性能数据
+                </div>
+              )}
             </Card.Content>
           </Card>
         </Grid.Column>
       </Grid>
 
-      {/* 渠道状态表格 */}
-      <Card fluid style={{ marginTop: '20px' }}>
-        <Card.Content>
-          <Card.Header>渠道状态概览</Card.Header>
-          <Table celled compact>
-            <Table.Header>
-              <Table.Row>
-                <Table.HeaderCell>渠道名称</Table.HeaderCell>
-                <Table.HeaderCell>类型</Table.HeaderCell>
-                <Table.HeaderCell>状态</Table.HeaderCell>
-                <Table.HeaderCell>余额</Table.HeaderCell>
-                <Table.HeaderCell>响应时间</Table.HeaderCell>
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {channelStats.map((channel, index) => (
-                <Table.Row key={index}>
-                  <Table.Cell>{channel.name}</Table.Cell>
-                  <Table.Cell>
-                    <Label color={getChannelTypeColor(channel.type)}>
-                      {channel.type}
-                    </Label>
-                  </Table.Cell>
-                  <Table.Cell>{getChannelStatusLabel(channel.status)}</Table.Cell>
-                  <Table.Cell>${channel.balance.toFixed(2)}</Table.Cell>
-                  <Table.Cell>{channel.responseTime}ms</Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table>
+      {/* 渠道状态概览 - 优化表格显示 */}
+      <Card fluid style={{
+        borderRadius: '16px',
+        border: 'none',
+        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+      }}>
+        <Card.Content style={{ padding: '24px' }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '20px'
+          }}>
+            <div>
+              <h3 style={{
+                color: techColorScheme.text.primary,
+                fontSize: '18px',
+                fontWeight: '600',
+                margin: '0 0 4px 0'
+              }}>
+                渠道状态概览
+              </h3>
+              <p style={{
+                color: techColorScheme.text.secondary,
+                fontSize: '14px',
+                margin: '0'
+              }}>
+                监控各渠道的运行状态、响应时间和请求统计
+              </p>
+            </div>
+            <Button 
+              primary 
+              size="small"
+              onClick={() => window.location.href = '/channel'}
+              style={{
+                background: techColorScheme.primary,
+                borderRadius: '8px'
+              }}
+            >
+              管理渠道
+            </Button>
+          </div>
+          
+          {channelStats.length > 0 ? (
+            <>
+              <Table celled compact style={{ marginTop: '16px' }}>
+                <Table.Header>
+                  <Table.Row>
+                    <Table.HeaderCell style={{ background: techColorScheme.background }}>渠道名称</Table.HeaderCell>
+                    <Table.HeaderCell style={{ background: techColorScheme.background }}>渠道类型</Table.HeaderCell>
+                    <Table.HeaderCell style={{ background: techColorScheme.background }}>运行状态</Table.HeaderCell>
+                    <Table.HeaderCell style={{ background: techColorScheme.background }}>响应时间</Table.HeaderCell>
+                    <Table.HeaderCell style={{ background: techColorScheme.background }}>请求量</Table.HeaderCell>
+                    <Table.HeaderCell style={{ background: techColorScheme.background }}>余额</Table.HeaderCell>
+                  </Table.Row>
+                </Table.Header>
+                <Table.Body>
+                  {channelStats.slice(0, 10).map((channel, index) => (
+                    <Table.Row key={index}>
+                      <Table.Cell style={{ fontWeight: '500' }}>{channel.name}</Table.Cell>
+                      <Table.Cell>
+                        <Label 
+                          size="tiny" 
+                          style={{
+                            background: getChannelTypeColor(channel.type),
+                            color: 'white',
+                            borderRadius: '4px'
+                          }}
+                        >
+                          {getChannelTypeName(channel.type)}
+                        </Label>
+                      </Table.Cell>
+                      <Table.Cell>{getChannelStatusLabel(channel.status)}</Table.Cell>
+                      <Table.Cell>
+                        <span style={{
+                          color: channel.responseTime < 1000 ? techColorScheme.chart.success : 
+                                 channel.responseTime < 3000 ? techColorScheme.chart.warning : 
+                                 techColorScheme.chart.error,
+                          fontWeight: '500'
+                        }}>
+                          {formatResponseTime(channel.responseTime)}
+                        </span>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <span style={{ fontWeight: '500' }}>
+                          {channel.requestCount.toLocaleString()}
+                        </span>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <span style={{
+                          color: channel.balance > 10 ? techColorScheme.chart.success : 
+                                 channel.balance > 1 ? techColorScheme.chart.warning : 
+                                 techColorScheme.chart.error,
+                          fontWeight: '500'
+                        }}>
+                          ${channel.balance.toFixed(2)}
+                        </span>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table>
+              
+              {channelStats.length > 10 && (
+                <div style={{
+                  textAlign: 'center',
+                  marginTop: '16px',
+                  padding: '12px',
+                  color: techColorScheme.text.secondary,
+                  fontSize: '14px'
+                }}>
+                  显示前10个渠道，共{channelStats.length}个渠道
+                  <Button 
+                    basic 
+                    size="small" 
+                    style={{ marginLeft: '12px' }}
+                    onClick={() => window.location.href = '/channel'}
+                  >
+                    查看全部
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{
+              height: '200px',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              color: techColorScheme.text.secondary,
+              fontSize: '16px'
+            }}>
+              暂无渠道数据
+            </div>
+          )}
         </Card.Content>
       </Card>
     </div>
