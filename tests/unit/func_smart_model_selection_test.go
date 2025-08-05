@@ -15,6 +15,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// TestSmartModelSelection_HeaderProcessing 测试智能模型选择的请求头处理
+// 测试目的：验证智能模型选择功能的请求头解析逻辑，确保能够正确识别和处理各种输入格式
+// 测试内容：
+// 1. 不同大小写格式的"true"值处理
+// 2. 不同大小写格式的"false"值处理
+// 3. 空值和空格的处理
+// 4. 无效值的处理
+// 5. 带空格的值的处理
 func TestSmartModelSelection_HeaderProcessing(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -86,6 +94,14 @@ func TestSmartModelSelection_HeaderProcessing(t *testing.T) {
 	}
 }
 
+// TestSmartModelSelection_MiddlewareIntegration 测试智能模型选择中间件集成
+// 测试目的：验证智能模型选择中间件与身份解析器的集成，确保能够根据用户偏好正确替换模型
+// 测试内容：
+// 1. 启用智能模型选择时的模型替换逻辑
+// 2. 禁用智能模型选择时的模型保持逻辑
+// 3. 未知用户的处理
+// 4. 不同输入格式的处理（大小写混合、带空格等）
+// 5. 中间件与身份解析器的协作
 func TestSmartModelSelection_MiddlewareIntegration(t *testing.T) {
 	// 设置测试环境
 	gin.SetMode(gin.TestMode)
@@ -220,6 +236,14 @@ func TestSmartModelSelection_MiddlewareIntegration(t *testing.T) {
 	}
 }
 
+// TestSmartModelSelection_EdgeCases 测试智能模型选择的边界情况
+// 测试目的：验证智能模型选择功能在各种边界情况下的稳定性和错误处理能力
+// 测试内容：
+// 1. 大小写混合输入的处理
+// 2. 带空格的输入处理
+// 3. 无效JSON请求体的处理
+// 4. 缺少模型字段的请求处理
+// 5. 异常情况的容错能力
 func TestSmartModelSelection_EdgeCases(t *testing.T) {
 	// 设置测试环境
 	gin.SetMode(gin.TestMode)

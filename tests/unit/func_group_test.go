@@ -31,6 +31,12 @@ func setupTestDB() {
 }
 
 // TestGroup_Create_创建用户组 测试用户组创建功能
+// 测试目的：验证用户组创建API的正确性，确保能够成功创建用户组并正确存储到数据库
+// 测试内容：
+// 1. 用户组创建请求的参数验证和处理
+// 2. 数据库中用户组代表用户的创建
+// 3. GroupRatio映射的更新
+// 4. 响应格式和状态码的正确性
 func TestGroup_Create_创建用户组(t *testing.T) {
 	// 设置测试数据库
 	setupTestDB()
@@ -88,6 +94,12 @@ func TestGroup_Create_创建用户组(t *testing.T) {
 }
 
 // TestGroup_Update_更新用户组描述 测试用户组描述更新功能
+// 测试目的：验证用户组更新API的正确性，确保能够成功更新用户组的描述信息
+// 测试内容：
+// 1. 用户组更新请求的参数验证和处理
+// 2. 数据库中用户组代表用户信息的更新
+// 3. 响应格式和状态码的正确性
+// 4. 更新前后数据的对比验证
 func TestGroup_Update_更新用户组描述(t *testing.T) {
 	// 设置测试数据库
 	setupTestDB()
@@ -152,6 +164,12 @@ func TestGroup_Update_更新用户组描述(t *testing.T) {
 }
 
 // TestGroup_Delete_删除空用户组 测试删除空用户组功能
+// 测试目的：验证用户组删除API的正确性，确保能够成功删除没有活跃用户的用户组
+// 测试内容：
+// 1. 用户组删除请求的处理
+// 2. 数据库中用户组代表用户的删除
+// 3. GroupRatio映射的清理
+// 4. 响应格式和状态码的正确性
 func TestGroup_Delete_删除空用户组(t *testing.T) {
 	// 设置测试数据库
 	setupTestDB()
@@ -208,6 +226,12 @@ func TestGroup_Delete_删除空用户组(t *testing.T) {
 }
 
 // TestGroup_Delete_有活跃用户的用户组 测试删除有活跃用户的用户组（应该失败）
+// 测试目的：验证用户组删除API的安全机制，确保不能删除包含活跃用户的用户组
+// 测试内容：
+// 1. 有活跃用户时删除请求的处理
+// 2. 错误响应的格式和状态码
+// 3. 数据库中用户组数据的保护
+// 4. 错误消息的准确性
 func TestGroup_Delete_有活跃用户的用户组(t *testing.T) {
 	// 设置测试数据库
 	setupTestDB()
@@ -275,6 +299,12 @@ func TestGroup_Delete_有活跃用户的用户组(t *testing.T) {
 }
 
 // TestGroup_GetGroupsDetail_获取用户组详情 测试获取用户组详情功能
+// 测试目的：验证用户组详情查询API的正确性，确保能够正确返回用户组列表和统计信息
+// 测试内容：
+// 1. 用户组详情查询请求的处理
+// 2. 返回数据的格式和完整性
+// 3. 用户组统计信息的准确性
+// 4. 响应格式和状态码的正确性
 func TestGroup_GetGroupsDetail_获取用户组详情(t *testing.T) {
 	// 设置测试数据库
 	setupTestDB()
@@ -337,6 +367,12 @@ func TestGroup_GetGroupsDetail_获取用户组详情(t *testing.T) {
 }
 
 // TestGroup_Create_重复名称 测试创建重复名称的用户组（应该失败）
+// 测试目的：验证用户组创建API的重复性检查，确保不能创建同名的用户组
+// 测试内容：
+// 1. 重复名称检查的逻辑
+// 2. 错误响应的格式和状态码
+// 3. 错误消息的准确性
+// 4. 数据库中数据的完整性保护
 func TestGroup_Create_重复名称(t *testing.T) {
 	// 设置测试数据库
 	setupTestDB()
@@ -395,6 +431,12 @@ func TestGroup_Create_重复名称(t *testing.T) {
 }
 
 // TestGroup_Delete_预定义用户组 测试删除预定义用户组（应该失败）
+// 测试目的：验证用户组删除API的保护机制，确保不能删除系统预定义的用户组
+// 测试内容：
+// 1. 预定义用户组的保护逻辑
+// 2. 错误响应的格式和状态码
+// 3. 错误消息的准确性
+// 4. 系统稳定性的保护
 func TestGroup_Delete_预定义用户组(t *testing.T) {
 	// 设置测试数据库
 	setupTestDB()
