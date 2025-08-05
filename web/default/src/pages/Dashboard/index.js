@@ -15,6 +15,7 @@ import {
   Cell,
   Area,
   AreaChart,
+  Sector,
 } from 'recharts';
 import { API } from '../../helpers';
 import { CHANNEL_OPTIONS } from '../../constants/channel.constants';
@@ -102,19 +103,29 @@ const Dashboard = () => {
   });
   
   const [channelStats, setChannelStats] = useState([]);
-  const [timeRange, setTimeRange] = useState('7d'); // 7d, 30d, 90d
+  const [timeRange, setTimeRange] = useState('7d'); // API趋势图的时间范围
+  const [channelTimeRange, setChannelTimeRange] = useState('7d'); // 渠道使用分布的时间范围
   const [loading, setLoading] = useState(true);
+  const [apiDataKey, setApiDataKey] = useState(Date.now()); // 用于强制刷新API趋势图
+  const [channelDataKey, setChannelDataKey] = useState(Date.now()); // 用于强制刷新渠道图表
+  const [activeIndex, setActiveIndex] = useState(0); // 用于饼图交互
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // API趋势图数据加载
   useEffect(() => {
-    const fetchAllData = async () => {
+    const fetchApiData = async () => {
       await fetchDashboardData();
       fetchSystemStats();
-      fetchChannelStats();
     };
     
-    fetchAllData();
+    fetchApiData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeRange]);
+  
+  // 渠道使用分布数据加载
+  useEffect(() => {
+    fetchChannelStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channelTimeRange]);
 
   const fetchDashboardData = async () => {
     try {
@@ -187,7 +198,33 @@ const Dashboard = () => {
 
   const fetchChannelStats = async () => {
     try {
-      const response = await API.get('/api/channel');
+      // 根据时间范围计算开始和结束日期
+      const now = new Date();
+      let startDate;
+      
+      switch(channelTimeRange) {
+        case '30d':
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 30);
+          break;
+        case '90d':
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 90);
+          break;
+        case '7d':
+        default:
+          startDate = new Date(now);
+          startDate.setDate(now.getDate() - 7);
+          break;
+      }
+      
+      // 将日期转换为Unix时间戳
+      const startTimestamp = Math.floor(startDate.getTime() / 1000);
+      const endTimestamp = Math.floor(now.getTime() / 1000);
+      
+      // 请求渠道数据，添加时间范围参数
+      const response = await API.get(`/api/channel?start=${startTimestamp}&end=${endTimestamp}`);
+      
       if (response.data.success) {
         const channels = response.data.data || [];
         const channelStatsData = channels.map(channel => ({
@@ -195,7 +232,6 @@ const Dashboard = () => {
           name: channel.name || 'Unknown',
           type: channel.type,
           status: channel.status,
-          balance: channel.balance || 0,
           responseTime: channel.response_time || 0,
           requestCount: channel.used_quota || 0, // 使用已用配额作为请求量指标
         }));
@@ -289,15 +325,14 @@ const Dashboard = () => {
     }
 
     return channelStats
-      .filter(channel => channel.status === 1 && channel.requestCount > 0 && channel.responseTime > 0)
+      .filter(channel => channel.status === 1 && channel.responseTime > 0) // 只过滤有响应时间的活跃渠道
       .map(channel => ({
         name: channel.name,
         type: getChannelTypeName(channel.type),
         responseTime: channel.responseTime,
-        requestCount: channel.requestCount,
       }))
-      .sort((a, b) => b.requestCount - a.requestCount)
-      .slice(0, 8); // 只显示前8个
+      .sort((a, b) => a.responseTime - b.responseTime) // 按响应时间从低到高排序
+      .slice(0, 10); // 显示前10个响应最快的渠道
   };
 
   // 获取渠道类型名称
@@ -356,6 +391,62 @@ const Dashboard = () => {
       day: 'numeric',
     });
   };
+  
+  // 处理饼图点击事件
+  const onPieEnter = (_, index) => {
+    setActiveIndex(index);
+  };
+  
+  // 自定义活动形状组件
+  const renderActiveShape = (props) => {
+    const RADIAN = Math.PI / 180;
+    const { 
+      cx, cy, midAngle, innerRadius, outerRadius, startAngle, endAngle,
+      fill, payload, percent, value
+    } = props;
+    
+    const sin = Math.sin(-RADIAN * midAngle);
+    const cos = Math.cos(-RADIAN * midAngle);
+    const sx = cx + (outerRadius + 10) * cos;
+    const sy = cy + (outerRadius + 10) * sin;
+    const mx = cx + (outerRadius + 30) * cos;
+    const my = cy + (outerRadius + 30) * sin;
+    const ex = mx + (cos >= 0 ? 1 : -1) * 22;
+    const ey = my;
+    const textAnchor = cos >= 0 ? 'start' : 'end';
+  
+    return (
+      <g>
+        <text x={cx} y={cy} dy={8} textAnchor="middle" fill={fill}>
+          {payload.name}
+        </text>
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius + 10}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+        />
+        <Sector
+          cx={cx}
+          cy={cy}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          innerRadius={outerRadius + 6}
+          outerRadius={outerRadius + 10}
+          fill={fill}
+        />
+        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" />
+        <circle cx={ex} cy={ey} r={2} fill={fill} stroke="none" />
+        <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333">{`${payload.name}`}</text>
+        <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={18} textAnchor={textAnchor} fill="#999">
+          {`${value} 次 (${(percent * 100).toFixed(2)}%)`}
+        </text>
+      </g>
+    );
+  };
 
   // 时间范围选项
   const timeRangeOptions = [
@@ -394,52 +485,18 @@ const Dashboard = () => {
       maxWidth: '1400px',
       margin: '0 auto'
     }}>
-      {/* 时间范围选择器 - 影响所有图表 */}
+      {/* 仪表盘标题 */}
       <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px',
-        backgroundColor: techColorScheme.surface,
-        padding: '16px 20px',
-        borderRadius: '12px',
-        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)'
+        marginBottom: '24px'
       }}>
-        <div>
-          <h2 style={{
-            color: techColorScheme.text.primary,
-            fontSize: '20px',
-            fontWeight: '600',
-            margin: '0 0 4px 0'
-          }}>
-            仪表盘数据概览
-          </h2>
-          <p style={{
-            color: techColorScheme.text.secondary,
-            fontSize: '14px',
-            margin: '0'
-          }}>
-            选择时间范围查看数据统计
-          </p>
-        </div>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center'
+        <h2 style={{
+          color: techColorScheme.text.primary,
+          fontSize: '24px',
+          fontWeight: '600',
+          margin: '0'
         }}>
-          <span style={{
-            color: techColorScheme.text.secondary,
-            marginRight: '8px',
-            fontSize: '14px'
-          }}>
-            时间范围:
-          </span>
-          <Dropdown
-            value={timeRange}
-            options={timeRangeOptions}
-            onChange={(e, { value }) => setTimeRange(value)}
-            style={{ minWidth: '120px' }}
-          />
-        </div>
+          仪表盘数据概览
+        </h2>
       </div>
       
       {/* 顶部统计卡片 - 可点击跳转 */}
@@ -594,27 +651,53 @@ const Dashboard = () => {
       }}>
         <Card.Content style={{ padding: '24px' }}>
           <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             marginBottom: '24px'
           }}>
-            <h3 style={{
-              color: techColorScheme.text.primary,
-              fontSize: '20px',
-              fontWeight: '600',
-              margin: '0 0 4px 0'
+            <div>
+              <h3 style={{
+                color: techColorScheme.text.primary,
+                fontSize: '20px',
+                fontWeight: '600',
+                margin: '0 0 4px 0'
+              }}>
+                API请求趋势
+              </h3>
+              <p style={{
+                color: techColorScheme.text.secondary,
+                fontSize: '14px',
+                margin: '0'
+              }}>
+                监控OneAPI系统的请求量、令牌使用量和配额消耗
+              </p>
+            </div>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center'
             }}>
-              API请求趋势
-            </h3>
-            <p style={{
-              color: techColorScheme.text.secondary,
-              fontSize: '14px',
-              margin: '0'
-            }}>
-              监控OneAPI系统的请求量、令牌使用量和配额消耗
-            </p>
+              <span style={{
+                color: techColorScheme.text.secondary,
+                marginRight: '8px',
+                fontSize: '14px'
+              }}>
+                时间范围:
+              </span>
+              <Dropdown
+                value={timeRange}
+                options={timeRangeOptions}
+                onChange={(e, { value }) => {
+                  setTimeRange(value);
+                  setApiDataKey(Date.now()); // 强制刷新API趋势图
+                }}
+                style={{ minWidth: '120px' }}
+              />
+            </div>
           </div>
           
           {timeSeriesData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={400} key={`api-chart-${apiDataKey}`}>
               <AreaChart data={timeSeriesData}>
                 <defs>
                   <linearGradient id="requestsGradient" x1="0" y1="0" x2="0" y2="1">
@@ -710,36 +793,70 @@ const Dashboard = () => {
             height: '100%'
           }}>
             <Card.Content style={{ padding: '24px' }}>
-              <h3 style={{
-                color: techColorScheme.text.primary,
-                fontSize: '18px',
-                fontWeight: '600',
-                margin: '0 0 16px 0'
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'flex-start',
+                marginBottom: '16px'
               }}>
-                渠道使用分布
-              </h3>
-              <p style={{
-                color: techColorScheme.text.secondary,
-                fontSize: '14px',
-                margin: '0 0 20px 0'
-              }}>
-                各渠道类型的请求量分布情况
-              </p>
+                <div>
+                  <h3 style={{
+                    color: techColorScheme.text.primary,
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    margin: '0 0 4px 0'
+                  }}>
+                    渠道使用分布
+                  </h3>
+                  <p style={{
+                    color: techColorScheme.text.secondary,
+                    fontSize: '14px',
+                    margin: '0'
+                  }}>
+                    各渠道的请求量分布情况
+                  </p>
+                </div>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center'
+                }}>
+                  <span style={{
+                    color: techColorScheme.text.secondary,
+                    marginRight: '8px',
+                    fontSize: '14px'
+                  }}>
+                    时间范围:
+                  </span>
+                  <Dropdown
+                    value={channelTimeRange}
+                    options={timeRangeOptions}
+                    onChange={(e, { value }) => {
+                      setChannelTimeRange(value);
+                      setChannelDataKey(Date.now()); // 强制刷新渠道图表
+                    }}
+                    style={{ minWidth: '120px' }}
+                  />
+                </div>
+              </div>
               
               {channelUsageData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={300} key={`channel-chart-${channelDataKey}`}>
                   <PieChart>
                     <Pie
+                      activeIndex={activeIndex}
+                      activeShape={renderActiveShape}
                       data={channelUsageData}
                       cx="50%"
                       cy="50%"
-                      labelLine={true}
-                      label={({ name, percent }) => `${percent * 100 < 5 ? '' : (percent * 100).toFixed(0) + '%'}`}
+                      labelLine={false}
+                      label={false}
                       outerRadius={80}
-                      innerRadius={30}
+                      innerRadius={40}
                       fill="#8884d8"
                       dataKey="value"
-                      paddingAngle={2}
+                      paddingAngle={3}
+                      onMouseEnter={onPieEnter}
+                      onClick={onPieEnter}
                     >
                       {channelUsageData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={chartConfig.barColors[index % chartConfig.barColors.length]} />
@@ -792,18 +909,18 @@ const Dashboard = () => {
                 fontWeight: '600',
                 margin: '0 0 16px 0'
               }}>
-                渠道性能排行
+                渠道响应时间排行
               </h3>
               <p style={{
                 color: techColorScheme.text.secondary,
                 fontSize: '14px',
                 margin: '0 0 20px 0'
               }}>
-                按请求量排序的渠道性能统计
+                各渠道的响应时间排行统计
               </p>
               
               {channelPerformanceData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
+                <ResponsiveContainer width="100%" height={300} key={`performance-chart-${channelDataKey}`}>
                   <BarChart data={channelPerformanceData} layout="horizontal">
                     <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
                     <XAxis type="number" tick={{ fontSize: 12, fill: techColorScheme.text.secondary }} />
@@ -820,15 +937,14 @@ const Dashboard = () => {
                         borderRadius: '8px',
                         boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
                       }}
-                      formatter={(value, name) => {
-                        if (name === 'requestCount') return [`${value} 次`, '请求量'];
-                        if (name === 'responseTime') return [`${formatResponseTime(value)}`, '响应时间'];
-                        return [value, name];
-                      }}
+                      formatter={(value) => [`${formatResponseTime(value)}`, '响应时间']}
                     />
-                    <Legend />
-                    <Bar dataKey="requestCount" name="请求量" fill={techColorScheme.chart.primary} radius={[0, 4, 4, 0]} />
-                    <Bar dataKey="responseTime" name="响应时间" fill={techColorScheme.chart.secondary} radius={[0, 4, 4, 0]} />
+                    <Bar 
+                      dataKey="responseTime" 
+                      name="响应时间" 
+                      fill={techColorScheme.chart.primary} 
+                      radius={[0, 4, 4, 0]} 
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
@@ -901,7 +1017,6 @@ const Dashboard = () => {
                     <Table.HeaderCell style={{ background: techColorScheme.background }}>运行状态</Table.HeaderCell>
                     <Table.HeaderCell style={{ background: techColorScheme.background }}>响应时间</Table.HeaderCell>
                     <Table.HeaderCell style={{ background: techColorScheme.background }}>请求量</Table.HeaderCell>
-                    <Table.HeaderCell style={{ background: techColorScheme.background }}>余额</Table.HeaderCell>
                   </Table.Row>
                 </Table.Header>
                 <Table.Body>
@@ -934,16 +1049,6 @@ const Dashboard = () => {
                       <Table.Cell>
                         <span style={{ fontWeight: '500' }}>
                           {channel.requestCount.toLocaleString()}
-                        </span>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <span style={{
-                          color: channel.balance > 10 ? techColorScheme.chart.success : 
-                                 channel.balance > 1 ? techColorScheme.chart.warning : 
-                                 techColorScheme.chart.error,
-                          fontWeight: '500'
-                        }}>
-                          ${channel.balance.toFixed(2)}
                         </span>
                       </Table.Cell>
                     </Table.Row>
