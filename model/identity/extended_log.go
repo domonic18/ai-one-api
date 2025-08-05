@@ -20,8 +20,8 @@ type ExtendedLog struct {
 	ExternalUserId string    `json:"external_user_id" gorm:"type:varchar(100);index"` // 外部用户ID（如teacher_id）
 	UserGroup      string    `json:"user_group" gorm:"type:varchar(100);index"`       // OneAPI用户组
 	DimensionInfo  string    `json:"dimension_info" gorm:"type:json"`                 // 多维度统计维度信息（JSON格式）
-	CreatedAt      time.Time `json:"created_at" gorm:"type:datetime"`                 // 创建时间
-	UpdatedAt      time.Time `json:"updated_at" gorm:"type:datetime"`                 // 更新时间
+	CreatedAt      time.Time `json:"created_at" gorm:"type:datetime(3)"`              // 创建时间
+	UpdatedAt      time.Time `json:"updated_at" gorm:"type:datetime(3)"`              // 更新时间
 }
 
 // TableName 指定表名

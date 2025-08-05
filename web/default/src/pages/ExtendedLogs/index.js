@@ -229,6 +229,30 @@ const ExtendedLogs = () => {
 
   // 渲染时间戳
   const renderTimestamp = (timestamp, logId) => {
+    const formatTimestamp = (ts) => {
+      if (!ts) return '-';
+      try {
+        // 如果是ISO字符串格式，直接转换
+        if (typeof ts === 'string') {
+          const date = new Date(ts);
+          return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+          });
+        }
+        // 如果是Unix时间戳，使用原有函数
+        return timestamp2string(ts);
+      } catch (error) {
+        console.error('时间格式化错误:', error);
+        return '-';
+      }
+    };
+
     return (
       <code
         onClick={async () => {

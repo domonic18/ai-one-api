@@ -84,11 +84,11 @@ SET @create_table_sql = IF(@extended_logs_exists = 0,
         dimension_info JSON DEFAULT NULL,               -- 维度信息，如：{"school_id": 1, "school_name": "北京中学", "subject_id": 10, "subject_name": "数学组"}
         
         -- 管理字段
-        created_at timestamp DEFAULT CURRENT_TIMESTAMP,
-        updated_at timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        created_at datetime(3) DEFAULT NULL,
+        updated_at datetime(3) DEFAULT NULL,
         
         -- 基础索引
-        INDEX idx_log_id (log_id),
+        UNIQUE INDEX idx_log_id_unique (log_id),
         INDEX idx_external_user_id (external_user_id),
         INDEX idx_user_group (user_group),
         INDEX idx_created_at (created_at)
@@ -134,7 +134,7 @@ SELECT
 FROM INFORMATION_SCHEMA.STATISTICS 
 WHERE TABLE_SCHEMA = DATABASE() 
     AND TABLE_NAME IN ('tokens', 'extended_logs')
-    AND INDEX_NAME IN ('idx_tokens_group', 'idx_log_id', 'idx_external_user_id', 'idx_user_group', 'idx_created_at')
+    AND INDEX_NAME IN ('idx_tokens_group', 'idx_log_id_unique', 'idx_external_user_id', 'idx_user_group', 'idx_created_at')
 ORDER BY TABLE_NAME, INDEX_NAME;
 
 -- 提交事务
