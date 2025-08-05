@@ -11,8 +11,6 @@ import {
   Table,
   Modal,
   Grid,
-  Statistic,
-  Divider,
   Icon,
   Message,
   Dropdown,
@@ -38,8 +36,6 @@ const ExtendedLogs = () => {
   const [activePage, setActivePage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
-  const [statistics, setStatistics] = useState({});
-  const [showStatistics, setShowStatistics] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
 
@@ -49,6 +45,12 @@ const ExtendedLogs = () => {
     user_group: '',
     start_timestamp: '',
     end_timestamp: '',
+  });
+
+  // 排序状态
+  const [sortConfig, setSortConfig] = useState({
+    key: 'created_at',
+    direction: 'desc'
   });
 
   // 时间选择器状态
@@ -138,41 +140,11 @@ const ExtendedLogs = () => {
     }
   }, [filters]);
 
-  // 加载统计信息
-  const loadStatistics = useCallback(async () => {
-    if (!isAdmin()) return;
-    
-    try {
-      const params = new URLSearchParams();
-      if (filters.start_timestamp) {
-        params.append('start_timestamp', filters.start_timestamp);
-      }
-      if (filters.end_timestamp) {
-        params.append('end_timestamp', filters.end_timestamp);
-      }
-
-      const res = await API.get(`/api/log/extended/statistics?${params}`);
-      if (res && res.data && res.data.success) {
-        setStatistics(res.data.data || {});
-      } else {
-        const errorMsg = res?.data?.message || '未知错误';
-        showError('加载统计信息失败：' + errorMsg);
-        setStatistics({});
-      }
-    } catch (error) {
-      const errorMsg = error?.message || error?.toString() || '网络错误';
-      showError('加载统计信息失败：' + errorMsg);
-      setStatistics({});
-    }
-  }, [filters.start_timestamp, filters.end_timestamp]);
-
   // 加载日志详情
   const loadLogDetail = async (logId) => {
     try {
-      console.log('loadLogDetail called, t function type:', typeof t);
       const res = await API.get(`/api/log/extended/${logId}`);
       if (res.data && res.data.success) {
-        console.log('API response data:', res.data.data);
         setSelectedLog(res.data.data);
         setShowDetail(true);
       } else {
@@ -185,16 +157,12 @@ const ExtendedLogs = () => {
 
   // 初始化加载
   useEffect(() => {
-    // 延迟执行，确保组件完全挂载
     const timer = setTimeout(() => {
       loadLogs();
-      if (isAdmin()) {
-        loadStatistics();
-      }
     }, 100);
 
     return () => clearTimeout(timer);
-  }, [loadLogs, loadStatistics]);
+  }, [loadLogs]);
 
   // 筛选条件变化时重新加载
   useEffect(() => {
@@ -231,12 +199,59 @@ const ExtendedLogs = () => {
     setCustomEndDate('');
   };
 
+  // 处理排序
+  const handleSort = (key) => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  // 排序数据
+  const sortedLogs = useCallback(() => {
+    if (!sortConfig.key) return logs;
+
+    return [...logs].sort((a, b) => {
+      let aValue = a[sortConfig.key];
+      let bValue = b[sortConfig.key];
+
+      // 处理时间字段
+      if (sortConfig.key === 'created_at') {
+        aValue = new Date(aValue).getTime();
+        bValue = new Date(bValue).getTime();
+      }
+
+      // 处理字符串字段
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (aValue < bValue) {
+        return sortConfig.direction === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+  }, [logs, sortConfig]);
+
+  // 渲染排序图标
+  const renderSortIcon = (key) => {
+    if (sortConfig.key !== key) {
+      return <Icon name="sort" />;
+    }
+    return sortConfig.direction === 'asc' ? 
+      <Icon name="sort up" /> : 
+      <Icon name="sort down" />;
+  };
+
   // 渲染时间戳
   const renderTimestamp = (timestamp, logId) => {
     const formatTimestamp = (ts) => {
       if (!ts) return '-';
       try {
-        // 如果是ISO字符串格式，直接转换
         if (typeof ts === 'string') {
           const date = new Date(ts);
           return date.toLocaleString('zh-CN', {
@@ -249,7 +264,6 @@ const ExtendedLogs = () => {
             hour12: false
           });
         }
-        // 如果是Unix时间戳，使用原有函数
         return timestamp2string(ts);
       } catch (error) {
         console.error('时间格式化错误:', error);
@@ -278,7 +292,6 @@ const ExtendedLogs = () => {
     if (!dimensionInfoStr) return '-';
     
     try {
-      // 如果是字符串，先解析JSON
       let dimensionInfo;
       if (typeof dimensionInfoStr === 'string') {
         dimensionInfo = JSON.parse(dimensionInfoStr);
@@ -291,18 +304,15 @@ const ExtendedLogs = () => {
       const keys = Object.keys(dimensionInfo);
       if (keys.length === 0) return '-';
       
-      // 显示前3个维度信息，优先显示有意义的字段
       const priorityKeys = ['school_name', 'subject_name', 'teacher_name'];
       const displayKeys = [];
       
-      // 先添加优先字段
       priorityKeys.forEach(key => {
         if (dimensionInfo[key] && displayKeys.length < 3) {
           displayKeys.push(key);
         }
       });
       
-      // 如果还没有3个，添加其他字段
       keys.forEach(key => {
         if (!priorityKeys.includes(key) && displayKeys.length < 3) {
           displayKeys.push(key);
@@ -310,7 +320,23 @@ const ExtendedLogs = () => {
       });
       
       const parts = displayKeys.map(key => `${key}: ${dimensionInfo[key]}`);
-      return parts.join(' | ') || '-';
+      const result = parts.join(' | ') || '-';
+      
+      // 如果内容过长，显示省略号
+      if (result.length > 50) {
+        return (
+          <Popup
+            content={result}
+            trigger={
+              <span style={{ cursor: 'pointer' }}>
+                {result.substring(0, 50)}...
+              </span>
+            }
+          />
+        );
+      }
+      
+      return result;
     } catch (error) {
       console.error('维度信息解析错误:', error);
       return '解析失败';
@@ -321,123 +347,33 @@ const ExtendedLogs = () => {
   const renderOriginalLogInfo = (originalLog) => {
     if (!originalLog) return '-';
     
-    return (
-      <div>
-        <div><strong>模型:</strong> {originalLog.model_name || '-'}</div>
-        <div><strong>配额:</strong> {originalLog.quota != null ? (typeof t === 'function' ? renderQuota(originalLog.quota, t) : originalLog.quota) : '-'}</div>
-        <div><strong>令牌:</strong> {originalLog.prompt_tokens + originalLog.completion_tokens || 0}</div>
-      </div>
-    );
-  };
-
-  // 渲染统计卡片
-  const renderStatisticsCard = () => {
-    if (!statistics || Object.keys(statistics).length === 0) return null;
-
-    return (
-      <Card fluid>
-        <Card.Content>
-          <Card.Header>
-            <Icon name="chart bar" />
-            扩展日志统计
-            <Button
-              floated="right"
-              size="small"
-              onClick={() => setShowStatistics(!showStatistics)}
-            >
-              {showStatistics ? '隐藏' : '显示'}
-            </Button>
-          </Card.Header>
-          {showStatistics && (
-            <Card.Description>
-              <Grid columns={3} divided>
-                <Grid.Column>
-                  <Statistic size="small">
-                    <Statistic.Value>{statistics.total_count || 0}</Statistic.Value>
-                    <Statistic.Label>总记录数</Statistic.Label>
-                  </Statistic>
-                </Grid.Column>
-                <Grid.Column>
-                  <Statistic size="small">
-                    <Statistic.Value>{statistics.user_group_stats?.length || 0}</Statistic.Value>
-                    <Statistic.Label>用户组数</Statistic.Label>
-                  </Statistic>
-                </Grid.Column>
-                <Grid.Column>
-                  <Statistic size="small">
-                    <Statistic.Value>{statistics.external_user_stats?.length || 0}</Statistic.Value>
-                    <Statistic.Label>活跃用户数</Statistic.Label>
-                  </Statistic>
-                </Grid.Column>
-              </Grid>
-
-              <Divider />
-
-              <Grid columns={2}>
-                <Grid.Column>
-                  <Header size="small">用户组Top5</Header>
-                  {statistics.user_group_stats?.slice(0, 5).map((item, index) => (
-                    <div key={index}>
-                      <Label size="small">
-                        {item.user_group}: {item.count}
-                      </Label>
-                    </div>
-                  ))}
-                </Grid.Column>
-                <Grid.Column>
-                  <Header size="small">活跃用户Top5</Header>
-                  {statistics.external_user_stats?.slice(0, 5).map((item, index) => (
-                    <div key={index}>
-                      <Label size="small">
-                        {item.external_user_id}: {item.count}
-                      </Label>
-                    </div>
-                  ))}
-                </Grid.Column>
-              </Grid>
-            </Card.Description>
-          )}
-        </Card.Content>
-      </Card>
-    );
-  };
-
-  // 渲染时间选择器
-  const renderTimeSelector = () => {
-    return (
-      <Form.Group>
-        <Form.Field>
-          <label>时间范围</label>
-          <Dropdown
-            fluid
-            selection
-            options={timeRangeOptions}
-            value={timeRange}
-            onChange={(e, { value }) => setTimeRange(value)}
-          />
-        </Form.Field>
-        {timeRange === 'custom' && (
-          <>
-            <Form.Field>
-              <label>开始日期</label>
-              <Input
-                type="date"
-                value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
-              />
-            </Form.Field>
-            <Form.Field>
-              <label>结束日期</label>
-              <Input
-                type="date"
-                value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
-              />
-            </Form.Field>
-          </>
-        )}
-      </Form.Group>
-    );
+    const modelName = originalLog.model_name || '-';
+    const quota = originalLog.quota != null ? (typeof t === 'function' ? renderQuota(originalLog.quota, t) : originalLog.quota) : '-';
+    const tokens = originalLog.prompt_tokens + originalLog.completion_tokens || 0;
+    
+    const content = `模型: ${modelName} | 配额: ${quota} | 令牌: ${tokens}`;
+    
+    // 如果内容过长，显示省略号
+    if (content.length > 40) {
+      return (
+        <Popup
+          content={
+            <div>
+              <div><strong>模型:</strong> {modelName}</div>
+              <div><strong>配额:</strong> {quota}</div>
+              <div><strong>令牌:</strong> {tokens}</div>
+            </div>
+          }
+          trigger={
+            <span style={{ cursor: 'pointer' }}>
+              {content.substring(0, 40)}...
+            </span>
+          }
+        />
+      );
+    }
+    
+    return content;
   };
 
   // 渲染筛选器
@@ -446,28 +382,59 @@ const ExtendedLogs = () => {
       <Segment>
         <Header size="small">筛选条件</Header>
         <Form>
-          {renderTimeSelector()}
           <Form.Group widths="equal">
-            <Form.Input
-              label="外部用户ID"
-              placeholder="输入教师ID"
-              value={filters.external_user_id}
-              onChange={(e) => handleFilterChange('external_user_id', e.target.value)}
-            />
-            <Form.Input
-              label="用户组"
-              placeholder="输入用户组"
-              value={filters.user_group}
-              onChange={(e) => handleFilterChange('user_group', e.target.value)}
-            />
-
-          </Form.Group>
-          <Form.Group>
+            <Form.Field>
+              <label>时间范围</label>
+              <Dropdown
+                fluid
+                selection
+                options={timeRangeOptions}
+                value={timeRange}
+                onChange={(e, { value }) => setTimeRange(value)}
+              />
+            </Form.Field>
+            <Form.Field>
+              <label>外部用户ID</label>
+              <Input
+                placeholder="输入教师ID"
+                value={filters.external_user_id}
+                onChange={(e) => handleFilterChange('external_user_id', e.target.value)}
+              />
+            </Form.Field>
+            <Form.Field>
+              <label>用户组</label>
+              <Input
+                placeholder="输入用户组"
+                value={filters.user_group}
+                onChange={(e) => handleFilterChange('user_group', e.target.value)}
+              />
+            </Form.Field>
             <Form.Field>
               <label>&nbsp;</label>
               <Button onClick={resetFilters}>重置</Button>
             </Form.Field>
           </Form.Group>
+          
+          {timeRange === 'custom' && (
+            <Form.Group widths="equal">
+              <Form.Field>
+                <label>开始日期</label>
+                <Input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                />
+              </Form.Field>
+              <Form.Field>
+                <label>结束日期</label>
+                <Input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </Form.Field>
+            </Form.Group>
+          )}
         </Form>
       </Segment>
     );
@@ -602,9 +569,6 @@ const ExtendedLogs = () => {
 
   return (
     <div className="dashboard-container">
-      {/* 统计信息卡片 */}
-      {isAdmin() && renderStatisticsCard()}
-
       {/* 筛选器 */}
       {renderFilters()}
 
@@ -614,54 +578,74 @@ const ExtendedLogs = () => {
           <Card.Header>
             <Icon name="list" />
             扩展日志列表
-            <Button
-              floated="right"
-              size="small"
-              onClick={() => loadLogs((activePage - 1) * ITEMS_PER_PAGE)}
-              loading={loading}
-            >
-              刷新
-            </Button>
           </Card.Header>
           
-          <Table celled>
+          <Table celled sortable>
             <Table.Header>
               <Table.Row>
-                <Table.HeaderCell>时间</Table.HeaderCell>
-                <Table.HeaderCell>外部用户ID</Table.HeaderCell>
-                <Table.HeaderCell>用户组</Table.HeaderCell>
-                <Table.HeaderCell>维度信息</Table.HeaderCell>
-                <Table.HeaderCell>原始日志</Table.HeaderCell>
-                <Table.HeaderCell>操作</Table.HeaderCell>
+                <Table.HeaderCell 
+                  sorted={sortConfig.key === 'created_at' ? sortConfig.direction : null}
+                  onClick={() => handleSort('created_at')}
+                  style={{ cursor: 'pointer', width: '15%' }}
+                >
+                  时间 {renderSortIcon('created_at')}
+                </Table.HeaderCell>
+                <Table.HeaderCell 
+                  sorted={sortConfig.key === 'external_user_id' ? sortConfig.direction : null}
+                  onClick={() => handleSort('external_user_id')}
+                  style={{ cursor: 'pointer', width: '15%' }}
+                >
+                  外部用户ID {renderSortIcon('external_user_id')}
+                </Table.HeaderCell>
+                <Table.HeaderCell 
+                  sorted={sortConfig.key === 'user_group' ? sortConfig.direction : null}
+                  onClick={() => handleSort('user_group')}
+                  style={{ cursor: 'pointer', width: '15%' }}
+                >
+                  用户组 {renderSortIcon('user_group')}
+                </Table.HeaderCell>
+                <Table.HeaderCell style={{ width: '25%' }}>维度信息</Table.HeaderCell>
+                <Table.HeaderCell style={{ width: '20%' }}>原始日志</Table.HeaderCell>
+                <Table.HeaderCell style={{ width: '10%' }}>操作</Table.HeaderCell>
               </Table.Row>
             </Table.Header>
 
             <Table.Body>
-              {logs.length === 0 ? (
+              {sortedLogs().length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan="6" textAlign="center">
-                    {loading ? '加载中...' : '暂无数据'}
+                  <Table.Cell colSpan="6" textAlign="center" style={{ padding: '2rem' }}>
+                    {loading ? (
+                      <div>
+                        <Icon name="spinner" loading />
+                        <div style={{ marginTop: '0.5rem' }}>加载中...</div>
+                      </div>
+                    ) : (
+                      <div>
+                        <Icon name="inbox" size="large" style={{ color: '#ccc' }} />
+                        <div style={{ marginTop: '0.5rem', color: '#666' }}>暂无数据</div>
+                      </div>
+                    )}
                   </Table.Cell>
                 </Table.Row>
               ) : (
-                logs.map((log) => (
+                sortedLogs().map((log) => (
                   <Table.Row key={log.id}>
-                    <Table.Cell>
+                    <Table.Cell style={{ whiteSpace: 'nowrap' }}>
                       {renderTimestamp(log.created_at, log.id)}
                     </Table.Cell>
-                    <Table.Cell>
+                    <Table.Cell style={{ whiteSpace: 'nowrap' }}>
                       <code>{log.external_user_id}</code>
                     </Table.Cell>
-                    <Table.Cell>
+                    <Table.Cell style={{ whiteSpace: 'nowrap' }}>
                       {renderColorLabel(log.user_group)}
                     </Table.Cell>
-                    <Table.Cell>
+                    <Table.Cell style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
                       {renderDimensionInfo(log.dimension_info)}
                     </Table.Cell>
-                    <Table.Cell>
+                    <Table.Cell style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
                       {renderOriginalLogInfo(log.original_log)}
                     </Table.Cell>
-                    <Table.Cell>
+                    <Table.Cell style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
                       <Popup
                         content="查看详情"
                         trigger={

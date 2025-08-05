@@ -57,12 +57,7 @@ let headerButtons = [
     name: 'header.log',
     to: '/log',
     icon: 'book',
-  },
-  {
-    name: 'header.extended_log',
-    to: '/extended-logs',
-    icon: 'list alternate',
-    admin: true,
+    hasDropdown: true,
   },
   {
     name: 'header.setting',
@@ -219,6 +214,48 @@ const Header = () => {
                 >
                   <Icon name='users' style={{ marginRight: '4px' }} />
                   {t('header.group')}
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown>
+          );
+        } else if (button.name === 'header.log') {
+          return (
+            <Dropdown
+              key={button.name}
+              item
+              text={t(button.name)}
+              pointing
+              className='link item'
+              style={{
+                fontSize: '15px',
+                fontWeight: '400',
+                color: '#666',
+              }}
+            >
+              <Dropdown.Menu>
+                <Dropdown.Item
+                  as={Link}
+                  to={button.to}
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    color: '#666',
+                  }}
+                >
+                  <Icon name={button.icon} style={{ marginRight: '4px' }} />
+                  {t(button.name)}
+                </Dropdown.Item>
+                <Dropdown.Item
+                  as={Link}
+                  to='/extended-logs'
+                  style={{
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    color: '#666',
+                  }}
+                >
+                  <Icon name='list alternate' style={{ marginRight: '4px' }} />
+                  {t('header.extended_log')}
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown>
