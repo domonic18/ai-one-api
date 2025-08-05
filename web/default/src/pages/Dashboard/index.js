@@ -2,8 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, Grid, Label, Icon, Table, Message, Button, Dropdown } from 'semantic-ui-react';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
   Legend,
   ResponsiveContainer,
@@ -150,11 +148,11 @@ const Dashboard = () => {
       }
       
       // 将日期转换为Unix时间戳
-      const startTimestamp = Math.floor(startDate.getTime() / 1000);
-      const endTimestamp = Math.floor(now.getTime() / 1000);
+      // const startTimestamp = Math.floor(startDate.getTime() / 1000);
+      // const endTimestamp = Math.floor(now.getTime() / 1000);
       
       // 请求指定时间范围的数据
-      const response = await API.get(`/api/user/dashboard?start=${startTimestamp}&end=${endTimestamp}`);
+      const response = await API.get(`/api/user/dashboard?start=${startDate.getTime() / 1000}&end=${now.getTime() / 1000}`);
       
       if (response.data.success) {
         const dashboardData = response.data.data || [];
@@ -219,22 +217,24 @@ const Dashboard = () => {
       }
       
       // 将日期转换为Unix时间戳
-      const startTimestamp = Math.floor(startDate.getTime() / 1000);
-      const endTimestamp = Math.floor(now.getTime() / 1000);
+      // const startTimestamp = Math.floor(startDate.getTime() / 1000);
+      // const endTimestamp = Math.floor(now.getTime() / 1000);
       
-      // 请求渠道数据，添加时间范围参数
-      const response = await API.get(`/api/channel?start=${startTimestamp}&end=${endTimestamp}`);
+      // 请求渠道数据，不添加时间范围参数，因为渠道列表不需要时间过滤
+      const response = await API.get('/api/channel');
       
       if (response.data.success) {
         const channels = response.data.data || [];
+        
         const channelStatsData = channels.map(channel => ({
           id: channel.id,
           name: channel.name || 'Unknown',
           type: channel.type,
           status: channel.status,
-          responseTime: channel.response_time || 0,
-          requestCount: channel.used_quota || 0, // 使用已用配额作为请求量指标
+          responseTime: channel.response_time || 0, // 后端字段名是 response_time，单位是毫秒
+          requestCount: channel.used_quota || 0, // 后端字段名是 used_quota
         }));
+        
         setChannelStats(channelStatsData);
       }
     } catch (error) {
@@ -318,22 +318,7 @@ const Dashboard = () => {
     return channelData;
   };
 
-  // 处理渠道性能数据
-  const processChannelPerformanceData = () => {
-    if (!Array.isArray(channelStats) || channelStats.length === 0) {
-      return [];
-    }
 
-    return channelStats
-      .filter(channel => channel.status === 1 && channel.responseTime > 0) // 只过滤有响应时间的活跃渠道
-      .map(channel => ({
-        name: channel.name,
-        type: getChannelTypeName(channel.type),
-        responseTime: channel.responseTime,
-      }))
-      .sort((a, b) => a.responseTime - b.responseTime) // 按响应时间从低到高排序
-      .slice(0, 10); // 显示前10个响应最快的渠道
-  };
 
   // 获取渠道类型名称
   const getChannelTypeName = (typeId) => {
@@ -457,7 +442,6 @@ const Dashboard = () => {
 
   const timeSeriesData = processApiRequestData();
   const channelUsageData = processChannelUsageData();
-  const channelPerformanceData = processChannelPerformanceData();
 
   if (loading) {
     return (
@@ -772,19 +756,25 @@ const Dashboard = () => {
             <div style={{
               height: '400px',
               display: 'flex',
+              flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
               color: techColorScheme.text.secondary,
-              fontSize: '16px'
+              fontSize: '16px',
+              textAlign: 'center'
             }}>
-              暂无数据
+              <Icon name="line chart" size="large" style={{ marginBottom: '12px', opacity: 0.5 }} />
+              <div>暂无API请求数据</div>
+              <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>
+                请确保在选定时间范围内有API请求记录
+              </div>
             </div>
           )}
         </Card.Content>
       </Card>
 
-      {/* 渠道使用分布和性能统计 - 两列布局 */}
-      <Grid columns={2} stackable style={{ marginBottom: '24px' }}>
+      {/* 渠道使用分布 */}
+      <Grid columns={1} stackable style={{ marginBottom: '24px' }}>
         <Grid.Column>
           <Card fluid style={{
             borderRadius: '16px',
@@ -838,7 +828,6 @@ const Dashboard = () => {
                   />
                 </div>
               </div>
-              
               {channelUsageData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={300} key={`channel-chart-${channelDataKey}`}>
                   <PieChart>
@@ -871,9 +860,9 @@ const Dashboard = () => {
                       }}
                       formatter={(value, name) => [`${value} 次 (${((value / channelUsageData.reduce((sum, item) => sum + item.value, 0)) * 100).toFixed(1)}%)`, name]}
                     />
-                    <Legend 
-                      layout="vertical" 
-                      verticalAlign="middle" 
+                    <Legend
+                      layout="vertical"
+                      verticalAlign="middle"
                       align="right"
                       wrapperStyle={{ fontSize: '12px', paddingLeft: '10px' }}
                     />
@@ -883,80 +872,18 @@ const Dashboard = () => {
                 <div style={{
                   height: '300px',
                   display: 'flex',
+                  flexDirection: 'column',
                   justifyContent: 'center',
                   alignItems: 'center',
                   color: techColorScheme.text.secondary,
-                  fontSize: '16px'
+                  fontSize: '16px',
+                  textAlign: 'center'
                 }}>
-                  暂无渠道使用数据
-                </div>
-              )}
-            </Card.Content>
-          </Card>
-        </Grid.Column>
-        
-        <Grid.Column>
-          <Card fluid style={{
-            borderRadius: '16px',
-            border: 'none',
-            boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
-            height: '100%'
-          }}>
-            <Card.Content style={{ padding: '24px' }}>
-              <h3 style={{
-                color: techColorScheme.text.primary,
-                fontSize: '18px',
-                fontWeight: '600',
-                margin: '0 0 16px 0'
-              }}>
-                渠道响应时间排行
-              </h3>
-              <p style={{
-                color: techColorScheme.text.secondary,
-                fontSize: '14px',
-                margin: '0 0 20px 0'
-              }}>
-                各渠道的响应时间排行统计
-              </p>
-              
-              {channelPerformanceData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={300} key={`performance-chart-${channelDataKey}`}>
-                  <BarChart data={channelPerformanceData} layout="horizontal">
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.1} />
-                    <XAxis type="number" tick={{ fontSize: 12, fill: techColorScheme.text.secondary }} />
-                    <YAxis 
-                      type="category" 
-                      dataKey="name" 
-                      tick={{ fontSize: 12, fill: techColorScheme.text.secondary }}
-                      width={100}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: techColorScheme.surface,
-                        border: 'none',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                      }}
-                      formatter={(value) => [`${formatResponseTime(value)}`, '响应时间']}
-                    />
-                    <Bar 
-                      dataKey="responseTime" 
-                      name="响应时间" 
-                      fill={techColorScheme.chart.primary} 
-                      radius={[0, 4, 4, 0]} 
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{
-                  height: '300px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  color: techColorScheme.text.secondary,
-                  fontSize: '16px'
-                }}>
-                  暂无渠道性能数据
+                  <Icon name="pie chart" size="large" style={{ marginBottom: '12px', opacity: 0.5 }} />
+                  <div>暂无渠道使用数据</div>
+                  <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>
+                    请确保有启用的渠道且有请求数据
+                  </div>
                 </div>
               )}
             </Card.Content>
@@ -1080,12 +1007,18 @@ const Dashboard = () => {
             <div style={{
               height: '200px',
               display: 'flex',
+              flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
               color: techColorScheme.text.secondary,
-              fontSize: '16px'
+              fontSize: '16px',
+              textAlign: 'center'
             }}>
-              暂无渠道数据
+              <Icon name="table" size="large" style={{ marginBottom: '12px', opacity: 0.5 }} />
+              <div>暂无渠道数据</div>
+              <div style={{ fontSize: '14px', marginTop: '8px', opacity: 0.7 }}>
+                请先添加渠道或确保渠道数据已加载
+              </div>
             </div>
           )}
         </Card.Content>
