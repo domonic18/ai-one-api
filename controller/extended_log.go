@@ -15,6 +15,7 @@ import (
 
 // GetAllExtendedLogs 获取所有扩展日志（管理员权限）
 func GetAllExtendedLogs(c *gin.Context) {
+
 	// 解析查询参数
 	p, _ := strconv.Atoi(c.Query("p"))
 	if p < 0 {
@@ -33,8 +34,6 @@ func GetAllExtendedLogs(c *gin.Context) {
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	externalUserId := c.Query("external_user_id")
 	userGroup := c.Query("user_group")
-	schoolId := c.Query("school_id")
-	subjectId := c.Query("subject_id")
 
 	// 构建查询条件
 	conditions := make(map[string]interface{})
@@ -43,12 +42,6 @@ func GetAllExtendedLogs(c *gin.Context) {
 	}
 	if userGroup != "" {
 		conditions["user_group"] = userGroup
-	}
-	if schoolId != "" {
-		conditions["school_id"] = schoolId
-	}
-	if subjectId != "" {
-		conditions["subject_id"] = subjectId
 	}
 
 	// 查询扩展日志
@@ -269,9 +262,6 @@ func getExtendedLogsWithConditions(c *gin.Context, conditions map[string]interfa
 		switch key {
 		case "external_user_id", "user_group":
 			query = query.Where(key+" = ?", value)
-		case "school_id", "subject_id":
-			// JSON字段查询
-			query = query.Where("JSON_EXTRACT(dimension_info, '$."+key+"') = ?", value)
 		}
 	}
 
@@ -378,48 +368,28 @@ func getExtendedLogsStatistics(c *gin.Context, startTimestamp, endTimestamp int6
 		return nil, err
 	}
 
-	// 按学校统计（使用JSON字段）
-	var schoolStats []struct {
-		SchoolName string `json:"school_name"`
-		Count      int64  `json:"count"`
+	// 按外部用户ID统计（Top活跃用户）
+	var externalUserStats []struct {
+		ExternalUserId string `json:"external_user_id"`
+		Count          int64  `json:"count"`
 	}
 	err = model.DB.WithContext(c.Request.Context()).
 		Model(&identity.ExtendedLog{}).
-		Select("JSON_UNQUOTE(JSON_EXTRACT(dimension_info, '$.school_name')) as school_name, COUNT(*) as count").
+		Select("external_user_id, COUNT(*) as count").
 		Where("created_at BETWEEN ? AND ?", startTime, endTime).
-		Where("JSON_EXTRACT(dimension_info, '$.school_name') IS NOT NULL").
-		Group("school_name").
+		Where("external_user_id != ''").
+		Group("external_user_id").
 		Order("count DESC").
 		Limit(10).
-		Find(&schoolStats).Error
-	if err != nil {
-		return nil, err
-	}
-
-	// 按学科组统计（使用JSON字段）
-	var subjectStats []struct {
-		SubjectName string `json:"subject_name"`
-		Count       int64  `json:"count"`
-	}
-	err = model.DB.WithContext(c.Request.Context()).
-		Model(&identity.ExtendedLog{}).
-		Select("JSON_UNQUOTE(JSON_EXTRACT(dimension_info, '$.subject_name')) as subject_name, COUNT(*) as count").
-		Where("created_at BETWEEN ? AND ?", startTime, endTime).
-		Where("JSON_EXTRACT(dimension_info, '$.subject_name') IS NOT NULL").
-		Where("JSON_EXTRACT(dimension_info, '$.subject_name') != ''").
-		Group("subject_name").
-		Order("count DESC").
-		Limit(10).
-		Find(&subjectStats).Error
+		Find(&externalUserStats).Error
 	if err != nil {
 		return nil, err
 	}
 
 	return gin.H{
-		"total_count":      totalCount,
-		"user_group_stats": userGroupStats,
-		"school_stats":     schoolStats,
-		"subject_stats":    subjectStats,
+		"total_count":         totalCount,
+		"user_group_stats":    userGroupStats,
+		"external_user_stats": externalUserStats,
 		"time_range": gin.H{
 			"start_time": startTime,
 			"end_time":   endTime,

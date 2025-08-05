@@ -14,6 +14,9 @@ import {
   Divider,
   Icon,
   Message,
+  Dropdown,
+  Input,
+  Popup,
 } from 'semantic-ui-react';
 import {
   API,
@@ -33,7 +36,7 @@ const ExtendedLogs = () => {
   const [activePage, setActivePage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [total, setTotal] = useState(0);
-  const [statistics, setStatistics] = useState(null);
+  const [statistics, setStatistics] = useState({});
   const [showStatistics, setShowStatistics] = useState(false);
   const [selectedLog, setSelectedLog] = useState(null);
   const [showDetail, setShowDetail] = useState(false);
@@ -42,11 +45,69 @@ const ExtendedLogs = () => {
   const [filters, setFilters] = useState({
     external_user_id: '',
     user_group: '',
-    school_id: '',
-    subject_id: '',
     start_timestamp: '',
     end_timestamp: '',
   });
+
+  // 时间选择器状态
+  const [timeRange, setTimeRange] = useState('7d'); // 默认7天
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  // 时间范围选项
+  const timeRangeOptions = [
+    { key: '1d', text: '最近1天', value: '1d' },
+    { key: '7d', text: '最近7天', value: '7d' },
+    { key: '30d', text: '最近30天', value: '30d' },
+    { key: '90d', text: '最近90天', value: '90d' },
+    { key: 'custom', text: '自定义时间', value: 'custom' },
+  ];
+
+  // 更新时间戳
+  const updateTimestamps = useCallback(() => {
+    const now = new Date();
+    let startDate = new Date();
+
+    switch (timeRange) {
+      case '1d':
+        startDate.setDate(now.getDate() - 1);
+        break;
+      case '7d':
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        startDate.setDate(now.getDate() - 30);
+        break;
+      case '90d':
+        startDate.setDate(now.getDate() - 90);
+        break;
+      case 'custom':
+        if (customStartDate && customEndDate) {
+          const start = new Date(customStartDate);
+          const end = new Date(customEndDate);
+          setFilters(prev => ({
+            ...prev,
+            start_timestamp: Math.floor(start.getTime() / 1000).toString(),
+            end_timestamp: Math.floor(end.getTime() / 1000).toString(),
+          }));
+          return;
+        }
+        return;
+      default:
+        startDate.setDate(now.getDate() - 7);
+    }
+
+    setFilters(prev => ({
+      ...prev,
+      start_timestamp: Math.floor(startDate.getTime() / 1000).toString(),
+      end_timestamp: Math.floor(now.getTime() / 1000).toString(),
+    }));
+  }, [timeRange, customStartDate, customEndDate]);
+
+  // 时间范围变化时更新时间戳
+  useEffect(() => {
+    updateTimestamps();
+  }, [updateTimestamps]);
 
   // 加载扩展日志列表
   const loadLogs = useCallback(async (startIdx = 0) => {
@@ -89,13 +150,17 @@ const ExtendedLogs = () => {
       }
 
       const res = await API.get(`/api/log/extended/statistics?${params}`);
-      if (res.success) {
-        setStatistics(res.data);
+      if (res && res.success) {
+        setStatistics(res.data || {});
       } else {
-        showError('加载统计信息失败：' + res.message);
+        const errorMsg = res?.message || '未知错误';
+        showError('加载统计信息失败：' + errorMsg);
+        setStatistics({});
       }
     } catch (error) {
-      showError('加载统计信息失败：' + error.message);
+      const errorMsg = error?.message || error?.toString() || '网络错误';
+      showError('加载统计信息失败：' + errorMsg);
+      setStatistics({});
     }
   }, [filters.start_timestamp, filters.end_timestamp]);
 
@@ -116,10 +181,15 @@ const ExtendedLogs = () => {
 
   // 初始化加载
   useEffect(() => {
-    loadLogs();
-    if (isAdmin()) {
-      loadStatistics();
-    }
+    // 延迟执行，确保组件完全挂载
+    const timer = setTimeout(() => {
+      loadLogs();
+      if (isAdmin()) {
+        loadStatistics();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
   }, [loadLogs, loadStatistics]);
 
   // 筛选条件变化时重新加载
@@ -149,11 +219,12 @@ const ExtendedLogs = () => {
     setFilters({
       external_user_id: '',
       user_group: '',
-      school_id: '',
-      subject_id: '',
       start_timestamp: '',
       end_timestamp: '',
     });
+    setTimeRange('7d');
+    setCustomStartDate('');
+    setCustomEndDate('');
   };
 
   // 渲染时间戳
@@ -176,20 +247,16 @@ const ExtendedLogs = () => {
 
   // 渲染维度信息
   const renderDimensionInfo = (dimensionInfo) => {
-    if (!dimensionInfo) return '-';
+    if (!dimensionInfo || typeof dimensionInfo !== 'object') return '-';
     
-    const parts = [];
-    if (dimensionInfo.school_name) {
-      parts.push(dimensionInfo.school_name);
-    }
-    if (dimensionInfo.subject_name) {
-      parts.push(dimensionInfo.subject_name);
-    }
-    if (dimensionInfo.teacher_name) {
-      parts.push(dimensionInfo.teacher_name);
-    }
+    const keys = Object.keys(dimensionInfo);
+    if (keys.length === 0) return '-';
     
-    return parts.join(' / ') || '-';
+    // 显示前3个维度信息
+    const displayKeys = keys.slice(0, 3);
+    const parts = displayKeys.map(key => `${key}: ${dimensionInfo[key]}`);
+    
+    return parts.join(' | ') || '-';
   };
 
   // 渲染原始日志信息
@@ -207,7 +274,7 @@ const ExtendedLogs = () => {
 
   // 渲染统计卡片
   const renderStatisticsCard = () => {
-    if (!statistics) return null;
+    if (!statistics || Object.keys(statistics).length === 0) return null;
 
     return (
       <Card fluid>
@@ -225,7 +292,7 @@ const ExtendedLogs = () => {
           </Card.Header>
           {showStatistics && (
             <Card.Description>
-              <Grid columns={4} divided>
+              <Grid columns={3} divided>
                 <Grid.Column>
                   <Statistic size="small">
                     <Statistic.Value>{statistics.total_count || 0}</Statistic.Value>
@@ -240,21 +307,15 @@ const ExtendedLogs = () => {
                 </Grid.Column>
                 <Grid.Column>
                   <Statistic size="small">
-                    <Statistic.Value>{statistics.school_stats?.length || 0}</Statistic.Value>
-                    <Statistic.Label>学校数</Statistic.Label>
-                  </Statistic>
-                </Grid.Column>
-                <Grid.Column>
-                  <Statistic size="small">
-                    <Statistic.Value>{statistics.subject_stats?.length || 0}</Statistic.Value>
-                    <Statistic.Label>学科组数</Statistic.Label>
+                    <Statistic.Value>{statistics.external_user_stats?.length || 0}</Statistic.Value>
+                    <Statistic.Label>活跃用户数</Statistic.Label>
                   </Statistic>
                 </Grid.Column>
               </Grid>
 
               <Divider />
 
-              <Grid columns={3}>
+              <Grid columns={2}>
                 <Grid.Column>
                   <Header size="small">用户组Top5</Header>
                   {statistics.user_group_stats?.slice(0, 5).map((item, index) => (
@@ -266,21 +327,11 @@ const ExtendedLogs = () => {
                   ))}
                 </Grid.Column>
                 <Grid.Column>
-                  <Header size="small">学校Top5</Header>
-                  {statistics.school_stats?.slice(0, 5).map((item, index) => (
+                  <Header size="small">活跃用户Top5</Header>
+                  {statistics.external_user_stats?.slice(0, 5).map((item, index) => (
                     <div key={index}>
                       <Label size="small">
-                        {item.school_name}: {item.count}
-                      </Label>
-                    </div>
-                  ))}
-                </Grid.Column>
-                <Grid.Column>
-                  <Header size="small">学科组Top5</Header>
-                  {statistics.subject_stats?.slice(0, 5).map((item, index) => (
-                    <div key={index}>
-                      <Label size="small">
-                        {item.subject_name}: {item.count}
+                        {item.external_user_id}: {item.count}
                       </Label>
                     </div>
                   ))}
@@ -293,12 +344,51 @@ const ExtendedLogs = () => {
     );
   };
 
+  // 渲染时间选择器
+  const renderTimeSelector = () => {
+    return (
+      <Form.Group>
+        <Form.Field>
+          <label>时间范围</label>
+          <Dropdown
+            fluid
+            selection
+            options={timeRangeOptions}
+            value={timeRange}
+            onChange={(e, { value }) => setTimeRange(value)}
+          />
+        </Form.Field>
+        {timeRange === 'custom' && (
+          <>
+            <Form.Field>
+              <label>开始日期</label>
+              <Input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+              />
+            </Form.Field>
+            <Form.Field>
+              <label>结束日期</label>
+              <Input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+              />
+            </Form.Field>
+          </>
+        )}
+      </Form.Group>
+    );
+  };
+
   // 渲染筛选器
   const renderFilters = () => {
     return (
       <Segment>
         <Header size="small">筛选条件</Header>
         <Form>
+          {renderTimeSelector()}
           <Form.Group widths="equal">
             <Form.Input
               label="外部用户ID"
@@ -312,32 +402,9 @@ const ExtendedLogs = () => {
               value={filters.user_group}
               onChange={(e) => handleFilterChange('user_group', e.target.value)}
             />
-            <Form.Input
-              label="学校ID"
-              placeholder="输入学校ID"
-              value={filters.school_id}
-              onChange={(e) => handleFilterChange('school_id', e.target.value)}
-            />
-            <Form.Input
-              label="学科组ID"
-              placeholder="输入学科组ID"
-              value={filters.subject_id}
-              onChange={(e) => handleFilterChange('subject_id', e.target.value)}
-            />
+
           </Form.Group>
           <Form.Group>
-            <Form.Input
-              label="开始时间戳"
-              placeholder="Unix时间戳"
-              value={filters.start_timestamp}
-              onChange={(e) => handleFilterChange('start_timestamp', e.target.value)}
-            />
-            <Form.Input
-              label="结束时间戳"
-              placeholder="Unix时间戳"
-              value={filters.end_timestamp}
-              onChange={(e) => handleFilterChange('end_timestamp', e.target.value)}
-            />
             <Form.Field>
               <label>&nbsp;</label>
               <Button onClick={resetFilters}>重置</Button>
@@ -384,29 +451,17 @@ const ExtendedLogs = () => {
                 </Table.Body>
               </Table>
 
-              {selectedLog.dimension_info && (
+              {selectedLog.dimension_info && typeof selectedLog.dimension_info === 'object' && (
                 <>
                   <Header size="small">维度信息</Header>
                   <Table basic="very" celled>
                     <Table.Body>
-                      {selectedLog.dimension_info.school_name && (
-                        <Table.Row>
-                          <Table.Cell><strong>学校</strong></Table.Cell>
-                          <Table.Cell>{selectedLog.dimension_info.school_name}</Table.Cell>
+                      {Object.entries(selectedLog.dimension_info).map(([key, value]) => (
+                        <Table.Row key={key}>
+                          <Table.Cell><strong>{key}</strong></Table.Cell>
+                          <Table.Cell>{value}</Table.Cell>
                         </Table.Row>
-                      )}
-                      {selectedLog.dimension_info.subject_name && (
-                        <Table.Row>
-                          <Table.Cell><strong>学科组</strong></Table.Cell>
-                          <Table.Cell>{selectedLog.dimension_info.subject_name}</Table.Cell>
-                        </Table.Row>
-                      )}
-                      {selectedLog.dimension_info.teacher_name && (
-                        <Table.Row>
-                          <Table.Cell><strong>教师姓名</strong></Table.Cell>
-                          <Table.Cell>{selectedLog.dimension_info.teacher_name}</Table.Cell>
-                        </Table.Row>
-                      )}
+                      ))}
                     </Table.Body>
                   </Table>
                 </>
@@ -545,12 +600,16 @@ const ExtendedLogs = () => {
                       {renderOriginalLogInfo(log.original_log)}
                     </Table.Cell>
                     <Table.Cell>
-                      <Button
-                        size="small"
-                        onClick={() => loadLogDetail(log.log_id)}
-                      >
-                        详情
-                      </Button>
+                      <Popup
+                        content="查看详情"
+                        trigger={
+                          <Button
+                            size="small"
+                            icon="eye"
+                            onClick={() => loadLogDetail(log.log_id)}
+                          />
+                        }
+                      />
                     </Table.Cell>
                   </Table.Row>
                 ))
