@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Button,
   Card,
@@ -31,6 +32,7 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import { renderColorLabel, renderQuota } from '../../helpers/render';
 
 const ExtendedLogs = () => {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activePage, setActivePage] = useState(1);
@@ -122,12 +124,12 @@ const ExtendedLogs = () => {
       const url = isAdmin() ? '/api/log/extended/' : '/api/log/extended/self';
       const res = await API.get(`${url}?${params}`);
       
-      if (res.success) {
-        setLogs(res.data.logs || []);
-        setTotal(res.data.total || 0);
-        setTotalPages(Math.ceil((res.data.total || 0) / ITEMS_PER_PAGE));
+      if (res.data && res.data.success) {
+        setLogs(res.data.data.logs || []);
+        setTotal(res.data.data.total || 0);
+        setTotalPages(Math.ceil((res.data.data.total || 0) / ITEMS_PER_PAGE));
       } else {
-        showError(res.message);
+        showError(res.data?.message || '加载失败');
       }
     } catch (error) {
       showError('加载扩展日志失败：' + error.message);
@@ -150,10 +152,10 @@ const ExtendedLogs = () => {
       }
 
       const res = await API.get(`/api/log/extended/statistics?${params}`);
-      if (res && res.success) {
-        setStatistics(res.data || {});
+      if (res && res.data && res.data.success) {
+        setStatistics(res.data.data || {});
       } else {
-        const errorMsg = res?.message || '未知错误';
+        const errorMsg = res?.data?.message || '未知错误';
         showError('加载统计信息失败：' + errorMsg);
         setStatistics({});
       }
@@ -168,11 +170,11 @@ const ExtendedLogs = () => {
   const loadLogDetail = async (logId) => {
     try {
       const res = await API.get(`/api/log/extended/${logId}`);
-      if (res.success) {
-        setSelectedLog(res.data);
+      if (res.data && res.data.success) {
+        setSelectedLog(res.data.data);
         setShowDetail(true);
       } else {
-        showError('加载日志详情失败：' + res.message);
+        showError('加载日志详情失败：' + (res.data?.message || '未知错误'));
       }
     } catch (error) {
       showError('加载日志详情失败：' + error.message);
@@ -264,23 +266,53 @@ const ExtendedLogs = () => {
         }}
         style={{ cursor: 'pointer' }}
       >
-        {timestamp2string(timestamp)}
+        {formatTimestamp(timestamp)}
       </code>
     );
   };
 
   // 渲染维度信息
-  const renderDimensionInfo = (dimensionInfo) => {
-    if (!dimensionInfo || typeof dimensionInfo !== 'object') return '-';
+  const renderDimensionInfo = (dimensionInfoStr) => {
+    if (!dimensionInfoStr) return '-';
     
-    const keys = Object.keys(dimensionInfo);
-    if (keys.length === 0) return '-';
-    
-    // 显示前3个维度信息
-    const displayKeys = keys.slice(0, 3);
-    const parts = displayKeys.map(key => `${key}: ${dimensionInfo[key]}`);
-    
-    return parts.join(' | ') || '-';
+    try {
+      // 如果是字符串，先解析JSON
+      let dimensionInfo;
+      if (typeof dimensionInfoStr === 'string') {
+        dimensionInfo = JSON.parse(dimensionInfoStr);
+      } else {
+        dimensionInfo = dimensionInfoStr;
+      }
+      
+      if (!dimensionInfo || typeof dimensionInfo !== 'object') return '-';
+      
+      const keys = Object.keys(dimensionInfo);
+      if (keys.length === 0) return '-';
+      
+      // 显示前3个维度信息，优先显示有意义的字段
+      const priorityKeys = ['school_name', 'subject_name', 'teacher_name'];
+      const displayKeys = [];
+      
+      // 先添加优先字段
+      priorityKeys.forEach(key => {
+        if (dimensionInfo[key] && displayKeys.length < 3) {
+          displayKeys.push(key);
+        }
+      });
+      
+      // 如果还没有3个，添加其他字段
+      keys.forEach(key => {
+        if (!priorityKeys.includes(key) && displayKeys.length < 3) {
+          displayKeys.push(key);
+        }
+      });
+      
+      const parts = displayKeys.map(key => `${key}: ${dimensionInfo[key]}`);
+      return parts.join(' | ') || '-';
+    } catch (error) {
+      console.error('维度信息解析错误:', error);
+      return '解析失败';
+    }
   };
 
   // 渲染原始日志信息
@@ -290,7 +322,7 @@ const ExtendedLogs = () => {
     return (
       <div>
         <div><strong>模型:</strong> {originalLog.model_name || '-'}</div>
-        <div><strong>配额:</strong> {renderQuota(originalLog.quota)}</div>
+        <div><strong>配额:</strong> {renderQuota(originalLog.quota, t)}</div>
         <div><strong>令牌:</strong> {originalLog.prompt_tokens + originalLog.completion_tokens || 0}</div>
       </div>
     );

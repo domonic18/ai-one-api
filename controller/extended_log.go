@@ -55,11 +55,31 @@ func GetAllExtendedLogs(c *gin.Context) {
 		return
 	}
 
+	// 关联原始日志信息
+	enrichedLogs, err := enrichExtendedLogsWithOriginalLogs(c, extendedLogs)
+	if err != nil {
+		logger.Warnf(c.Request.Context(), "关联原始日志失败: %v", err)
+		// 如果关联失败，仍然返回基本的扩展日志信息
+		enrichedLogs = make([]gin.H, len(extendedLogs))
+		for i, el := range extendedLogs {
+			dimensionInfo, _ := el.GetDimensionInfo()
+			enrichedLogs[i] = gin.H{
+				"id":               el.Id,
+				"log_id":           el.LogId,
+				"external_user_id": el.ExternalUserId,
+				"user_group":       el.UserGroup,
+				"dimension_info":   dimensionInfo,
+				"created_at":       el.CreatedAt,
+				"updated_at":       el.UpdatedAt,
+			}
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"logs":  extendedLogs,
+			"logs":  enrichedLogs,
 			"total": total,
 		},
 	})
