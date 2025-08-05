@@ -43,12 +43,20 @@ const (
 func recordLogHelper(ctx context.Context, log *Log) {
 	requestId := helper.GetRequestID(ctx)
 	log.RequestId = requestId
+
+	// 添加详细的调试日志
+	logger.Debugf(ctx, "准备创建原始日志: UserId=%d, Type=%d, ModelName=%s, Quota=%d, PromptTokens=%d, CompletionTokens=%d, ChannelId=%d",
+		log.UserId, log.Type, log.ModelName, log.Quota, log.PromptTokens, log.CompletionTokens, log.ChannelId)
+
 	err := LOG_DB.Create(log).Error
 	if err != nil {
-		logger.Error(ctx, "failed to record log: "+err.Error())
+		logger.Errorf(ctx, "创建原始日志失败: error=%v, log=%+v", err, log)
 		return
 	}
-	logger.Infof(ctx, "record log: %+v", log)
+
+	// 记录成功创建的日志ID
+	logger.Infof(ctx, "原始日志创建成功: ID=%d, UserId=%d, Type=%d, ModelName=%s, Quota=%d",
+		log.Id, log.UserId, log.Type, log.ModelName, log.Quota)
 }
 
 func RecordLog(ctx context.Context, userId int, logType int, content string) {
@@ -79,12 +87,19 @@ func RecordTopupLog(ctx context.Context, userId int, content string, quota int) 
 
 func RecordConsumeLog(ctx context.Context, log *Log) int64 {
 	if !config.LogConsumeEnabled {
+		logger.Debugf(ctx, "日志消费记录已禁用，跳过记录")
 		return 0
 	}
+
 	log.Username = GetUsernameById(log.UserId)
 	log.CreatedAt = helper.GetTimestamp()
 	log.Type = LogTypeConsume
+
+	logger.Debugf(ctx, "开始记录消费日志: UserId=%d, Username=%s, ModelName=%s", log.UserId, log.Username, log.ModelName)
+
 	recordLogHelper(ctx, log)
+
+	logger.Debugf(ctx, "消费日志记录完成，返回日志ID=%d", log.Id)
 	return int64(log.Id)
 }
 
@@ -267,8 +282,11 @@ func GetLogById(logId int64) (*Log, error) {
 // GetLogsByIds 批量根据ID获取日志
 func GetLogsByIds(logIds []int64) ([]*Log, error) {
 	if len(logIds) == 0 {
+		logger.Debugf(context.Background(), "GetLogsByIds: 传入的日志ID列表为空")
 		return []*Log{}, nil
 	}
+
+	logger.Debugf(context.Background(), "GetLogsByIds: 查询日志ID列表: %v", logIds)
 
 	// 转换int64到int
 	intIds := make([]int, len(logIds))
@@ -279,7 +297,15 @@ func GetLogsByIds(logIds []int64) ([]*Log, error) {
 	var logs []*Log
 	err := LOG_DB.Where("id IN ?", intIds).Find(&logs).Error
 	if err != nil {
+		logger.Errorf(context.Background(), "GetLogsByIds: 查询日志失败: %v", err)
 		return nil, err
 	}
+
+	logger.Debugf(context.Background(), "GetLogsByIds: 成功查询到 %d 条日志记录", len(logs))
+	for _, log := range logs {
+		logger.Debugf(context.Background(), "GetLogsByIds: 日志详情 ID=%d, UserId=%d, ModelName=%s, Quota=%d",
+			log.Id, log.UserId, log.ModelName, log.Quota)
+	}
+
 	return logs, nil
 }

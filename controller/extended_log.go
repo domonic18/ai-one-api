@@ -313,16 +313,22 @@ func enrichExtendedLogsWithOriginalLogs(c *gin.Context, extendedLogs []*identity
 		logIds[i] = el.LogId
 	}
 
+	logger.Debugf(c.Request.Context(), "enrichExtendedLogsWithOriginalLogs: 需要关联 %d 个扩展日志，日志ID列表: %v", len(extendedLogs), logIds)
+
 	// 批量获取原始日志
 	originalLogs, err := model.GetLogsByIds(logIds)
 	if err != nil {
+		logger.Errorf(c.Request.Context(), "enrichExtendedLogsWithOriginalLogs: 批量获取原始日志失败: %v", err)
 		return nil, err
 	}
+
+	logger.Debugf(c.Request.Context(), "enrichExtendedLogsWithOriginalLogs: 成功获取 %d 条原始日志", len(originalLogs))
 
 	// 创建日志ID到日志对象的映射
 	logMap := make(map[int64]*model.Log)
 	for _, log := range originalLogs {
 		logMap[int64(log.Id)] = log
+		logger.Debugf(c.Request.Context(), "enrichExtendedLogsWithOriginalLogs: 映射原始日志 ID=%d, ModelName=%s", log.Id, log.ModelName)
 	}
 
 	// 构建增强的日志列表
@@ -348,6 +354,11 @@ func enrichExtendedLogsWithOriginalLogs(c *gin.Context, extendedLogs []*identity
 		// 添加原始日志信息
 		if originalLog, exists := logMap[el.LogId]; exists {
 			enrichedLog["original_log"] = originalLog
+			logger.Debugf(c.Request.Context(), "enrichExtendedLogsWithOriginalLogs: 成功关联原始日志 ExtendedLogID=%d, LogID=%d, ModelName=%s",
+				el.Id, el.LogId, originalLog.ModelName)
+		} else {
+			logger.Warnf(c.Request.Context(), "enrichExtendedLogsWithOriginalLogs: 未找到对应的原始日志 ExtendedLogID=%d, LogID=%d",
+				el.Id, el.LogId)
 		}
 
 		enrichedLogs[i] = enrichedLog

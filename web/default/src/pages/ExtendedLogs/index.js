@@ -169,8 +169,10 @@ const ExtendedLogs = () => {
   // 加载日志详情
   const loadLogDetail = async (logId) => {
     try {
+      console.log('loadLogDetail called, t function type:', typeof t);
       const res = await API.get(`/api/log/extended/${logId}`);
       if (res.data && res.data.success) {
+        console.log('API response data:', res.data.data);
         setSelectedLog(res.data.data);
         setShowDetail(true);
       } else {
@@ -322,7 +324,7 @@ const ExtendedLogs = () => {
     return (
       <div>
         <div><strong>模型:</strong> {originalLog.model_name || '-'}</div>
-        <div><strong>配额:</strong> {renderQuota(originalLog.quota, t)}</div>
+        <div><strong>配额:</strong> {originalLog.quota != null ? (typeof t === 'function' ? renderQuota(originalLog.quota, t) : originalLog.quota) : '-'}</div>
         <div><strong>令牌:</strong> {originalLog.prompt_tokens + originalLog.completion_tokens || 0}</div>
       </div>
     );
@@ -502,7 +504,7 @@ const ExtendedLogs = () => {
                   </Table.Row>
                   <Table.Row>
                     <Table.Cell><strong>创建时间</strong></Table.Cell>
-                    <Table.Cell>{timestamp2string(selectedLog.created_at)}</Table.Cell>
+                    <Table.Cell>{selectedLog.created_at ? new Date(selectedLog.created_at).toLocaleString('zh-CN') : '-'}</Table.Cell>
                   </Table.Row>
                 </Table.Body>
               </Table>
@@ -547,7 +549,11 @@ const ExtendedLogs = () => {
                     </Table.Row>
                     <Table.Row>
                       <Table.Cell><strong>配额</strong></Table.Cell>
-                      <Table.Cell>{renderQuota(selectedLog.original_log.quota)}</Table.Cell>
+                      <Table.Cell>
+                        {selectedLog.original_log.quota != null ? (
+                          typeof t === 'function' ? renderQuota(selectedLog.original_log.quota, t) : selectedLog.original_log.quota
+                        ) : '-'}
+                      </Table.Cell>
                     </Table.Row>
                     <Table.Row>
                       <Table.Cell><strong>提示令牌</strong></Table.Cell>
@@ -559,7 +565,7 @@ const ExtendedLogs = () => {
                     </Table.Row>
                     <Table.Row>
                       <Table.Cell><strong>渠道ID</strong></Table.Cell>
-                      <Table.Cell>{selectedLog.original_log.channel_id}</Table.Cell>
+                      <Table.Cell>{selectedLog.original_log.channel}</Table.Cell>
                     </Table.Row>
                     <Table.Row>
                       <Table.Cell><strong>请求ID</strong></Table.Cell>
