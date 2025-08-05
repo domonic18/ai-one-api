@@ -383,3 +383,16 @@ func (t *TestIdentityResolver) ResolveModel(ctx context.Context, externalIdentit
 	}
 	return requestModel
 }
+
+// GetUserDetails 获取用户详细信息
+func (t *TestIdentityResolver) GetUserDetails(ctx context.Context, externalIdentity string) map[string]interface{} {
+	// 测试实现返回基本的用户信息
+	if _, ok := t.userGroups[externalIdentity]; ok {
+		return map[string]interface{}{
+			"user_id": externalIdentity,
+			"group":   t.userGroups[externalIdentity],
+			"model":   t.userModels[externalIdentity],
+		}
+	}
+	return nil
+}
