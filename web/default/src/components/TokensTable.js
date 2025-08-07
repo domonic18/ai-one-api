@@ -97,6 +97,11 @@ const TokensTable = () => {
   const [selectedToken, setSelectedToken] = useState(null);
   const [selectedGroup, setSelectedGroup] = useState('');
   const [updatingGroup, setUpdatingGroup] = useState(false);
+  
+  // 多用户组相关状态
+  const [showMultiGroupModal, setShowMultiGroupModal] = useState(false);
+  const [selectedTokenGroups, setSelectedTokenGroups] = useState([]);
+  const [updatingMultiGroups, setUpdatingMultiGroups] = useState(false);
 
   // 加载用户组列表
   useEffect(() => {
@@ -113,10 +118,10 @@ const TokensTable = () => {
       const res = await API.get(`/api/token/?p=${startIdx}&order=${orderBy}`);
       const { success, message, data } = res.data;
       if (success) {
-        // 令牌数据现在已经包含group字段，无需额外请求
+        // 令牌数据现在已经包含groups字段，提取主要用户组用于显示
         const tokensWithGroups = data.map(token => ({
           ...token,
-          group: token.group || 'default'
+          group: (token.groups && token.groups.length > 0) ? token.groups[0] : 'default'
         }));
 
         if (startIdx === 0) {
@@ -160,8 +165,9 @@ const TokensTable = () => {
     try {
       const response = await API.get(`/api/token/${tokenId}`);
       if (response.data.success && response.data.data) {
-        // 直接从令牌数据中获取用户组
-        return response.data.data.group || 'default';
+        // 直接从令牌数据中获取用户组（使用groups字段的第一个元素）
+        const token = response.data.data;
+        return (token.groups && token.groups.length > 0) ? token.groups[0] : 'default';
       }
       return 'default';
     } catch (error) {
@@ -226,6 +232,91 @@ const TokensTable = () => {
       console.error('打开用户组模态框失败:', error);
       showError('打开用户组模态框失败');
     }
+  };
+
+  // 获取令牌的多用户组配置
+  const getTokenGroups = async (tokenId) => {
+    try {
+      const response = await API.get(`/api/token/${tokenId}/groups`);
+      if (response.data.success) {
+        return response.data.data.groups || ['default'];
+      } else {
+        console.error('获取令牌用户组失败:', response.data.message);
+        return ['default'];
+      }
+    } catch (error) {
+      console.error('获取令牌用户组失败:', error);
+      return ['default'];
+    }
+  };
+
+  // 打开多用户组配置模态框
+  const openMultiGroupModal = async (token) => {
+    try {
+      setSelectedToken(token);
+      // 获取当前令牌的用户组列表
+      const tokenGroups = await getTokenGroups(token.id);
+      setSelectedTokenGroups(tokenGroups);
+      setShowMultiGroupModal(true);
+    } catch (error) {
+      console.error('打开多用户组模态框失败:', error);
+      showError('打开多用户组模态框失败');
+    }
+  };
+
+  // 更新令牌的多用户组配置
+  const updateTokenGroups = async () => {
+    if (!selectedToken || selectedTokenGroups.length === 0) {
+      showError('请至少选择一个用户组');
+      return;
+    }
+
+    try {
+      setUpdatingMultiGroups(true);
+      const response = await API.put(`/api/token/${selectedToken.id}/groups`, {
+        groups: selectedTokenGroups,
+      });
+
+      if (response.data.success) {
+        showSuccess('令牌用户组配置更新成功');
+        setShowMultiGroupModal(false);
+        setSelectedToken(null);
+        setSelectedTokenGroups([]);
+        
+        // 刷新令牌列表
+        await loadTokens(0);
+      } else {
+        showError(response.data.message || '更新失败');
+      }
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.message) {
+        showError(error.response.data.message);
+      } else {
+        showError('更新失败: ' + error.message);
+      }
+    } finally {
+      setUpdatingMultiGroups(false);
+    }
+  };
+
+  // 添加用户组到列表
+  const addGroupToToken = (groupName) => {
+    if (groupName && !selectedTokenGroups.includes(groupName)) {
+      setSelectedTokenGroups([...selectedTokenGroups, groupName]);
+    }
+  };
+
+  // 从列表中移除用户组
+  const removeGroupFromToken = (groupName) => {
+    setSelectedTokenGroups(selectedTokenGroups.filter(g => g !== groupName));
+  };
+
+  // 移动用户组位置（调整优先级）
+  const moveGroup = (fromIndex, toIndex) => {
+    const newGroups = [...selectedTokenGroups];
+    const [movedGroup] = newGroups.splice(fromIndex, 1);
+    newGroups.splice(toIndex, 0, movedGroup);
+    setSelectedTokenGroups(newGroups);
   };
 
   const onPaginationChange = (e, { activePage }) => {
@@ -561,6 +652,24 @@ const TokensTable = () => {
                       >
                         <Icon name='edit' />
                       </Button>
+                      <Popup
+                        trigger={
+                          <Button
+                            size='mini'
+                            icon
+                            basic
+                            compact
+                            color='green'
+                            onClick={() => openMultiGroupModal(token)}
+                            style={{ flexShrink: 0, padding: '4px' }}
+                          >
+                            <Icon name='list' />
+                          </Button>
+                        }
+                        content='配置多用户组'
+                        position='top center'
+                        inverted
+                      />
                     </div>
                   </Table.Cell>
                   <Table.Cell>
@@ -744,6 +853,147 @@ const TokensTable = () => {
             disabled={!selectedGroup}
           >
             确认修改
+          </Button>
+        </Modal.Actions>
+      </Modal>
+
+      {/* 多用户组配置模态框 */}
+      <Modal
+        open={showMultiGroupModal}
+        onClose={() => setShowMultiGroupModal(false)}
+        size='small'
+      >
+        <Header icon='list' content='配置令牌多用户组' />
+        <Modal.Content>
+          <p>
+            令牌: <strong>{selectedToken?.name || selectedToken?.key}</strong>
+          </p>
+          <p style={{ color: '#666', fontSize: '0.9em', marginBottom: '1em' }}>
+            用户组按优先级顺序排列，优先级高的用户组会优先使用。可拖拽调整顺序。
+          </p>
+          
+          <Form>
+            <Form.Field>
+              <label>添加用户组</label>
+              <Dropdown
+                placeholder='选择要添加的用户组'
+                fluid
+                selection
+                clearable
+                options={groups
+                  .filter(group => !selectedTokenGroups.includes(group.name))
+                  .map(group => ({
+                    key: group.name,
+                    text: group.name,
+                    value: group.name
+                  }))
+                }
+                onChange={(e, { value }) => {
+                  if (value) {
+                    addGroupToToken(value);
+                  }
+                }}
+                value={null}
+              />
+            </Form.Field>
+            
+            <Form.Field>
+              <label>当前用户组列表（按优先级排序）</label>
+              <div style={{ border: '1px solid #ddd', borderRadius: '4px', padding: '8px', minHeight: '100px' }}>
+                {selectedTokenGroups.length === 0 ? (
+                  <div style={{ color: '#999', textAlign: 'center', padding: '20px' }}>
+                    请至少添加一个用户组
+                  </div>
+                ) : (
+                  selectedTokenGroups.map((group, index) => (
+                    <div
+                      key={`${group}-${index}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '8px',
+                        margin: '4px 0',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '4px',
+                        border: '1px solid #e9ecef'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontWeight: 'bold', color: '#007bff' }}>
+                          #{index + 1}
+                        </span>
+                        <Label basic color={index === 0 ? 'green' : 'blue'}>
+                          {group}
+                        </Label>
+                        {index === 0 && (
+                          <Label basic color='green' size='mini'>
+                            最高优先级
+                          </Label>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <Button
+                          size='mini'
+                          icon
+                          basic
+                          compact
+                          disabled={index === 0}
+                          onClick={() => moveGroup(index, index - 1)}
+                        >
+                          <Icon name='arrow up' />
+                        </Button>
+                        <Button
+                          size='mini'
+                          icon
+                          basic
+                          compact
+                          disabled={index === selectedTokenGroups.length - 1}
+                          onClick={() => moveGroup(index, index + 1)}
+                        >
+                          <Icon name='arrow down' />
+                        </Button>
+                        <Button
+                          size='mini'
+                          icon
+                          basic
+                          compact
+                          color='red'
+                          onClick={() => removeGroupFromToken(group)}
+                        >
+                          <Icon name='trash' />
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Form.Field>
+            
+            {selectedTokenGroups.length > 0 && (
+              <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#e8f5e8', borderRadius: '4px' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#2d5a2d' }}>工作逻辑说明：</h4>
+                <ul style={{ margin: 0, paddingLeft: '20px', color: '#2d5a2d' }}>
+                  <li>当请求包含用户ID时，系统会解析用户所属的用户组</li>
+                  <li>如果解析的用户组在令牌配置的用户组列表中，则使用该用户组</li>
+                  <li>如果解析的用户组不在列表中，则使用优先级最高的用户组（第一个）</li>
+                  <li>如果请求不包含用户ID，则直接使用优先级最高的用户组</li>
+                </ul>
+              </div>
+            )}
+          </Form>
+        </Modal.Content>
+        <Modal.Actions>
+          <Button onClick={() => setShowMultiGroupModal(false)}>
+            取消
+          </Button>
+          <Button
+            color='blue'
+            onClick={updateTokenGroups}
+            loading={updatingMultiGroups}
+            disabled={selectedTokenGroups.length === 0}
+          >
+            确认配置
           </Button>
         </Modal.Actions>
       </Modal>

@@ -22,15 +22,50 @@ func Distribute() func(c *gin.Context) {
 		ctx := c.Request.Context()
 		userId := c.GetInt(ctxkey.Id)
 
-		// 优先使用令牌的分组，如果没有则使用用户的分组
-		tokenGroup, hasTokenGroup := c.Get(ctxkey.TokenGroup)
+		// 获取令牌信息以支持多用户组选择
 		var userGroup string
-		if hasTokenGroup && tokenGroup != "" {
-			userGroup = tokenGroup.(string)
-			logger.Debugf(ctx, "使用令牌分组: %s (用户ID: %d)", userGroup, userId)
+		tokenId := c.GetInt(ctxkey.TokenId)
+
+		// 检查是否已经通过身份解析设置了用户组
+		identityGroup, hasIdentityGroup := c.Get(ctxkey.Group)
+
+		if tokenId > 0 {
+			// 获取令牌信息
+			token, err := model.GetTokenById(tokenId)
+			if err != nil {
+				logger.Warnf(ctx, "获取令牌信息失败: tokenId=%d, error=%v", tokenId, err)
+				// 回退到原有逻辑
+				if hasIdentityGroup && identityGroup != "" {
+					userGroup = identityGroup.(string)
+				} else {
+					userGroup, _ = model.CacheGetUserGroup(userId)
+				}
+			} else {
+				// 根据身份解析结果选择合适的用户组
+				if hasIdentityGroup && identityGroup != "" {
+					resolvedGroup := identityGroup.(string)
+					// 使用令牌的SelectGroupByUserGroup方法选择最合适的组
+					userGroup = token.SelectGroupByUserGroup(resolvedGroup)
+					logger.Debugf(ctx, "多用户组选择: 令牌ID=%d, 解析组=%s, 选择组=%s, 令牌组列表=%v",
+						tokenId, resolvedGroup, userGroup, token.GetGroups())
+				} else {
+					// 没有身份解析结果，使用令牌的主要组
+					userGroup = token.GetPrimaryGroup()
+					logger.Debugf(ctx, "使用令牌主要组: 令牌ID=%d, 主要组=%s, 令牌组列表=%v",
+						tokenId, userGroup, token.GetGroups())
+				}
+			}
 		} else {
-			userGroup, _ = model.CacheGetUserGroup(userId)
+			// 没有令牌信息，使用原有逻辑
+			if hasIdentityGroup && identityGroup != "" {
+				userGroup = identityGroup.(string)
+				logger.Debugf(ctx, "使用身份解析组: %s (用户ID: %d)", userGroup, userId)
+			} else {
+				userGroup, _ = model.CacheGetUserGroup(userId)
+				logger.Debugf(ctx, "使用用户默认组: %s (用户ID: %d)", userGroup, userId)
+			}
 		}
+
 		c.Set(ctxkey.Group, userGroup)
 		var requestModel string
 		var channel *model.Channel

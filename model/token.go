@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -34,7 +35,44 @@ type Token struct {
 	UsedQuota      int64   `json:"used_quota" gorm:"bigint;default:0"` // used quota
 	Models         *string `json:"models" gorm:"type:text"`            // allowed models
 	Subnet         *string `json:"subnet" gorm:"default:''"`           // allowed subnet
-	Group          string  `json:"group" gorm:"default:'default'"`     // token group
+	Groups         *string `json:"groups" gorm:"type:text"`            // token groups with priority (JSON array)
+}
+
+// MarshalJSON 自定义JSON序列化，添加group字段用于兼容性
+func (t *Token) MarshalJSON() ([]byte, error) {
+	type Alias Token
+	return json.Marshal(&struct {
+		*Alias
+		Group string `json:"group"` // 兼容性字段
+	}{
+		Alias: (*Alias)(t),
+		Group: t.GetPrimaryGroup(),
+	})
+}
+
+// UnmarshalJSON 自定义JSON反序列化，处理group字段的兼容性
+func (t *Token) UnmarshalJSON(data []byte) error {
+	type Alias Token
+	aux := &struct {
+		*Alias
+		Group *string `json:"group"` // 兼容性字段
+	}{
+		Alias: (*Alias)(t),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	// 如果只有group字段而没有groups字段，将group转换为groups
+	if aux.Group != nil && (t.Groups == nil || *t.Groups == "") {
+		err := t.SetGroups([]string{*aux.Group})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func GetAllUserTokens(userId int, startIdx int, num int, order string) ([]*Token, error) {
@@ -133,7 +171,7 @@ func (t *Token) Insert() error {
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (t *Token) Update() error {
 	var err error
-	err = DB.Model(t).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota", "models", "subnet", "group").Updates(t).Error
+	err = DB.Model(t).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota", "models", "subnet", "groups").Updates(t).Error
 	return err
 }
 
@@ -156,6 +194,90 @@ func (t *Token) GetModels() string {
 		return ""
 	}
 	return *t.Models
+}
+
+// GetGroups 获取令牌的用户组列表（按优先级顺序）
+func (t *Token) GetGroups() []string {
+	if t == nil {
+		return []string{"default"}
+	}
+
+	// 使用Groups字段
+	if t.Groups != nil && *t.Groups != "" {
+		var groups []string
+		err := json.Unmarshal([]byte(*t.Groups), &groups)
+		if err != nil {
+			logger.SysError("Failed to parse token groups: " + err.Error())
+			return []string{"default"}
+		}
+		if len(groups) > 0 {
+			return groups
+		}
+	}
+
+	return []string{"default"}
+}
+
+// SetGroups 设置令牌的用户组列表
+func (t *Token) SetGroups(groups []string) error {
+	if t == nil {
+		return errors.New("token is nil")
+	}
+
+	if len(groups) == 0 {
+		groups = []string{"default"}
+	}
+
+	// 更新Groups字段
+	groupsJson, err := json.Marshal(groups)
+	if err != nil {
+		return fmt.Errorf("failed to marshal groups: %w", err)
+	}
+
+	groupsStr := string(groupsJson)
+	t.Groups = &groupsStr
+
+	return nil
+}
+
+// GetPrimaryGroup 获取令牌的主要用户组（第一个组）
+func (t *Token) GetPrimaryGroup() string {
+	groups := t.GetGroups()
+	if len(groups) > 0 {
+		return groups[0]
+	}
+	return "default"
+}
+
+// HasGroup 检查令牌是否包含指定的用户组
+func (t *Token) HasGroup(group string) bool {
+	groups := t.GetGroups()
+	for _, g := range groups {
+		if g == group {
+			return true
+		}
+	}
+	return false
+}
+
+// SelectGroupByUserGroup 根据解析的用户组选择对应的令牌组
+// 如果解析的用户组在令牌组列表中，返回该组；否则返回第一个组
+func (t *Token) SelectGroupByUserGroup(userGroup string) string {
+	if userGroup == "" {
+		return t.GetPrimaryGroup()
+	}
+
+	groups := t.GetGroups()
+
+	// 检查解析的用户组是否在令牌组列表中
+	for _, group := range groups {
+		if group == userGroup {
+			return group
+		}
+	}
+
+	// 如果解析的用户组不在列表中，返回第一个组（最高优先级）
+	return t.GetPrimaryGroup()
 }
 
 func DeleteTokenById(id int, userId int) (err error) {

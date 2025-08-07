@@ -134,7 +134,7 @@ func TokenAuth() func(c *gin.Context) {
 		c.Set(ctxkey.TokenId, token.Id)
 		c.Set(ctxkey.TokenName, token.Name)
 		// 设置令牌的分组信息
-		c.Set(ctxkey.TokenGroup, token.Group)
+		c.Set(ctxkey.TokenGroup, token.GetPrimaryGroup())
 		if len(parts) > 1 {
 			if model.IsAdmin(token.UserId) {
 				c.Set(ctxkey.SpecificChannelId, parts[1])

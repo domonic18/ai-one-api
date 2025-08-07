@@ -325,8 +325,16 @@ func UpdateTokenGroup(c *gin.Context) {
 		return
 	}
 
-	// 更新令牌的分组
-	token.Group = req.Group
+	// 更新令牌的分组（转换为多用户组格式）
+	err = token.SetGroups([]string{req.Group})
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "设置令牌分组失败: " + err.Error(),
+		})
+		return
+	}
+
 	err = token.Update()
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -344,5 +352,161 @@ func UpdateTokenGroup(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": fmt.Sprintf("令牌用户组已更新为 '%s'", req.Group),
+	})
+}
+
+// UpdateTokenGroups 修改令牌的多个用户组（支持优先级顺序）
+func UpdateTokenGroups(c *gin.Context) {
+	tokenId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的令牌ID",
+		})
+		return
+	}
+
+	var req struct {
+		Groups []string `json:"groups" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// 验证用户组列表
+	if len(req.Groups) == 0 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "用户组列表不能为空",
+		})
+		return
+	}
+
+	// 验证每个用户组是否存在
+	for _, group := range req.Groups {
+		if group == "default" {
+			continue // default组总是有效的
+		}
+
+		// 检查用户组是否存在于billing ratio中
+		exists := false
+		for groupName := range billingratio.GroupRatio {
+			if groupName == group {
+				exists = true
+				break
+			}
+		}
+
+		if !exists {
+			// 检查数据库中是否存在该用户组
+			var count int64
+			model.DB.Model(&model.User{}).Where("`group` = ?", group).Count(&count)
+			if count == 0 {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": fmt.Sprintf("用户组 '%s' 不存在", group),
+				})
+				return
+			}
+		}
+	}
+
+	// 获取令牌
+	token, err := model.GetTokenById(tokenId)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "令牌不存在",
+		})
+		return
+	}
+
+	// 检查权限（只能修改自己的令牌）
+	userId := c.GetInt(ctxkey.Id)
+	if token.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限修改此令牌",
+		})
+		return
+	}
+
+	// 更新令牌的用户组列表
+	err = token.SetGroups(req.Groups)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "设置用户组失败: " + err.Error(),
+		})
+		return
+	}
+
+	err = token.Update()
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "更新令牌用户组失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 清除相关缓存
+	if common.RedisEnabled {
+		common.RedisDel(fmt.Sprintf("token:%s", token.Key))
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "令牌用户组更新成功",
+		"data": gin.H{
+			"id":     token.Id,
+			"groups": token.GetGroups(),
+		},
+	})
+}
+
+// GetTokenGroups 获取令牌的用户组列表
+func GetTokenGroups(c *gin.Context) {
+	tokenId, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无效的令牌ID",
+		})
+		return
+	}
+
+	// 获取令牌
+	token, err := model.GetTokenById(tokenId)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "令牌不存在",
+		})
+		return
+	}
+
+	// 检查权限（只能查看自己的令牌）
+	userId := c.GetInt(ctxkey.Id)
+	if token.UserId != userId {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "无权限查看此令牌",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"id":     token.Id,
+			"name":   token.Name,
+			"groups": token.GetGroups(),
+		},
 	})
 }
