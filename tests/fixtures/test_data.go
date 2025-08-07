@@ -129,6 +129,55 @@ var TestTokenData = []model.Token{
 		CreatedTime:  time.Now().Unix() - 3600,
 		AccessedTime: time.Now().Unix(),
 	},
+	// 多用户组令牌测试数据
+	{
+		UserId:         2,
+		Key:            "sk-multi-groups-token",
+		Name:           "多用户组令牌",
+		Status:         1,
+		RemainQuota:    10000,
+		UnlimitedQuota: false,
+		Models:         stringPtr("gpt-3.5-turbo,gpt-4"),
+		UserGroups:     stringPtr(`["beijing_math_group","beijing_ai_group","default"]`),
+		CreatedTime:    time.Now().Unix() - 1800,
+		AccessedTime:   time.Now().Unix(),
+	},
+	{
+		UserId:         2,
+		Key:            "sk-single-group-token",
+		Name:           "单用户组令牌",
+		Status:         1,
+		RemainQuota:    5000,
+		UnlimitedQuota: false,
+		Models:         stringPtr("gpt-3.5-turbo"),
+		UserGroups:     stringPtr(`["beijing_math_group"]`),
+		CreatedTime:    time.Now().Unix() - 900,
+		AccessedTime:   time.Now().Unix(),
+	},
+	{
+		UserId:         3,
+		Key:            "sk-default-group-token",
+		Name:           "默认用户组令牌",
+		Status:         1,
+		RemainQuota:    3000,
+		UnlimitedQuota: false,
+		Models:         stringPtr("gpt-3.5-turbo"),
+		UserGroups:     stringPtr(`["default"]`),
+		CreatedTime:    time.Now().Unix() - 600,
+		AccessedTime:   time.Now().Unix(),
+	},
+	{
+		UserId:         3,
+		Key:            "sk-empty-groups-token",
+		Name:           "空用户组令牌",
+		Status:         1,
+		RemainQuota:    2000,
+		UnlimitedQuota: false,
+		Models:         stringPtr("gpt-3.5-turbo"),
+		UserGroups:     stringPtr(`[]`),
+		CreatedTime:    time.Now().Unix() - 300,
+		AccessedTime:   time.Now().Unix(),
+	},
 }
 
 // TestChannelData 提供测试渠道数据
@@ -441,4 +490,47 @@ func GetTestChannel(key string) *model.Channel {
 		}
 	}
 	return nil
+}
+
+// GetTestTokenByUserGroups 根据用户组获取测试令牌
+func GetTestTokenByUserGroups(userGroups []string) *model.Token {
+	for _, token := range TestTokenData {
+		tokenGroups := token.GetUserGroups()
+		if len(tokenGroups) == len(userGroups) {
+			match := true
+			for i, group := range userGroups {
+				if i >= len(tokenGroups) || tokenGroups[i] != group {
+					match = false
+					break
+				}
+			}
+			if match {
+				return &token
+			}
+		}
+	}
+	return nil
+}
+
+// GetTestTokensWithMultipleGroups 获取所有多用户组令牌
+func GetTestTokensWithMultipleGroups() []model.Token {
+	var tokens []model.Token
+	for _, token := range TestTokenData {
+		userGroups := token.GetUserGroups()
+		if len(userGroups) > 1 {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
+}
+
+// GetTestTokensByGroup 根据特定用户组获取令牌
+func GetTestTokensByGroup(group string) []model.Token {
+	var tokens []model.Token
+	for _, token := range TestTokenData {
+		if token.HasGroup(group) {
+			tokens = append(tokens, token)
+		}
+	}
+	return tokens
 }
