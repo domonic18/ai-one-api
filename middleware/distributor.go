@@ -47,12 +47,12 @@ func Distribute() func(c *gin.Context) {
 					// 使用令牌的SelectGroupByUserGroup方法选择最合适的组
 					userGroup = token.SelectGroupByUserGroup(resolvedGroup)
 					logger.Debugf(ctx, "多用户组选择: 令牌ID=%d, 解析组=%s, 选择组=%s, 令牌组列表=%v",
-						tokenId, resolvedGroup, userGroup, token.GetGroups())
+						tokenId, resolvedGroup, userGroup, token.GetUserGroups())
 				} else {
 					// 没有身份解析结果，使用令牌的主要组
 					userGroup = token.GetPrimaryGroup()
 					logger.Debugf(ctx, "使用令牌主要组: 令牌ID=%d, 主要组=%s, 令牌组列表=%v",
-						tokenId, userGroup, token.GetGroups())
+						tokenId, userGroup, token.GetUserGroups())
 				}
 			}
 		} else {

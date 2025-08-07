@@ -326,7 +326,7 @@ func UpdateTokenGroup(c *gin.Context) {
 	}
 
 	// 更新令牌的分组（转换为多用户组格式）
-	err = token.SetGroups([]string{req.Group})
+	err = token.SetUserGroups([]string{req.Group})
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -367,7 +367,7 @@ func UpdateTokenGroups(c *gin.Context) {
 	}
 
 	var req struct {
-		Groups []string `json:"groups" binding:"required"`
+		UserGroups []string `json:"user_groups" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -378,7 +378,7 @@ func UpdateTokenGroups(c *gin.Context) {
 	}
 
 	// 验证用户组列表
-	if len(req.Groups) == 0 {
+	if len(req.UserGroups) == 0 {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "用户组列表不能为空",
@@ -387,7 +387,7 @@ func UpdateTokenGroups(c *gin.Context) {
 	}
 
 	// 验证每个用户组是否存在
-	for _, group := range req.Groups {
+	for _, group := range req.UserGroups {
 		if group == "default" {
 			continue // default组总是有效的
 		}
@@ -436,7 +436,7 @@ func UpdateTokenGroups(c *gin.Context) {
 	}
 
 	// 更新令牌的用户组列表
-	err = token.SetGroups(req.Groups)
+	err = token.SetUserGroups(req.UserGroups)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -463,8 +463,8 @@ func UpdateTokenGroups(c *gin.Context) {
 		"success": true,
 		"message": "令牌用户组更新成功",
 		"data": gin.H{
-			"id":     token.Id,
-			"groups": token.GetGroups(),
+			"id":          token.Id,
+			"user_groups": token.GetUserGroups(),
 		},
 	})
 }
@@ -504,9 +504,9 @@ func GetTokenGroups(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data": gin.H{
-			"id":     token.Id,
-			"name":   token.Name,
-			"groups": token.GetGroups(),
+			"id":          token.Id,
+			"name":        token.Name,
+			"user_groups": token.GetUserGroups(),
 		},
 	})
 }

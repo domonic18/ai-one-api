@@ -20,28 +20,28 @@ WHERE TABLE_SCHEMA = DATABASE()
 -- 如果tokens表存在，执行迁移
 SELECT IF(@tokens_table_exists > 0, 'tokens表存在，开始迁移', 'tokens表不存在，跳过令牌用户组功能迁移') as status;
 
--- 检查groups字段是否已存在
-SELECT COUNT(*) INTO @groups_column_exists
+-- 检查user_groups字段是否已存在
+SELECT COUNT(*) INTO @user_groups_column_exists
 FROM INFORMATION_SCHEMA.COLUMNS 
 WHERE TABLE_SCHEMA = DATABASE() 
     AND TABLE_NAME = 'tokens' 
-    AND COLUMN_NAME = 'groups';
+    AND COLUMN_NAME = 'user_groups';
 
--- 如果groups字段不存在，则添加
-SET @add_groups_sql = IF(@groups_column_exists = 0, 
-    'ALTER TABLE tokens ADD COLUMN `groups` TEXT DEFAULT NULL COMMENT "令牌所属用户组列表（JSON数组，按优先级）"',
-    'SELECT "tokens表groups字段已存在，跳过添加" as message'
+-- 如果user_groups字段不存在，则添加
+SET @add_user_groups_sql = IF(@user_groups_column_exists = 0, 
+    'ALTER TABLE tokens ADD COLUMN `user_groups` TEXT DEFAULT NULL COMMENT "令牌所属用户组列表（JSON数组，按优先级）"',
+    'SELECT "tokens表user_groups字段已存在，跳过添加" as message'
 );
 
-PREPARE stmt FROM @add_groups_sql;
+PREPARE stmt FROM @add_user_groups_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- 为新创建的令牌设置默认groups值（如果groups字段为空）
+-- 为新创建的令牌设置默认user_groups值（如果user_groups字段为空）
 UPDATE tokens 
-SET `groups` = JSON_ARRAY('default') 
-WHERE `groups` IS NULL OR `groups` = '' OR `groups` = '[]';
-SELECT CONCAT('更新了 ', ROW_COUNT(), ' 条令牌记录的groups字段为默认值') as message;
+SET `user_groups` = JSON_ARRAY('default') 
+WHERE `user_groups` IS NULL OR `user_groups` = '' OR `user_groups` = '[]';
+SELECT CONCAT('更新了 ', ROW_COUNT(), ' 条令牌记录的user_groups字段为默认值') as message;
 
 -- ========================================
 -- 第二部分：扩展日志表功能迁移
@@ -89,9 +89,9 @@ DEALLOCATE PREPARE stmt;
 -- 第三部分：迁移完成状态检查
 -- ========================================
 
--- 检查tokens表的groups字段状态
+-- 检查tokens表的user_groups字段状态
 SELECT 
-    'tokens表groups字段状态' as check_type,
+    'tokens表user_groups字段状态' as check_type,
     COLUMN_NAME,
     COLUMN_DEFAULT,
     IS_NULLABLE,
@@ -99,7 +99,7 @@ SELECT
 FROM INFORMATION_SCHEMA.COLUMNS 
 WHERE TABLE_SCHEMA = DATABASE() 
     AND TABLE_NAME = 'tokens' 
-    AND COLUMN_NAME = 'groups';
+    AND COLUMN_NAME = 'user_groups';
 
 -- 检查extended_logs表状态
 SELECT 
