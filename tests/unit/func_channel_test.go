@@ -3,29 +3,14 @@ package unit
 import (
 	"testing"
 
-	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/tests/common"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func setupChannelTestDB() *gorm.DB {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		panic("failed to connect database")
-	}
-
-	// 设置 SQLite 标志
-	common.UsingSQLite = true
-
-	// 迁移表结构
-	err = db.AutoMigrate(&model.Channel{}, &model.Ability{})
-	if err != nil {
-		panic("failed to migrate database")
-	}
-
-	return db
+	return common.SetupMySQLTestDB()
 }
 
 // TestChannel_ChooseChannel 测试渠道选择功能
@@ -39,10 +24,7 @@ func setupChannelTestDB() *gorm.DB {
 func TestChannel_ChooseChannel(t *testing.T) {
 	db := setupChannelTestDB()
 	model.DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试渠道
 	channels := []model.Channel{
@@ -168,10 +150,7 @@ func uintPtr(v uint) *uint {
 func TestChannel_GetChannelsByGroupAndModel(t *testing.T) {
 	db := setupChannelTestDB()
 	model.DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试渠道
 	channels := []model.Channel{
@@ -265,10 +244,7 @@ func TestChannel_GetChannelsByGroupAndModel(t *testing.T) {
 func TestChannel_UpdateChannelBalance(t *testing.T) {
 	db := setupChannelTestDB()
 	model.DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试渠道
 	channel := model.Channel{
@@ -304,10 +280,7 @@ func TestChannel_UpdateChannelBalance(t *testing.T) {
 func TestChannel_UpdateChannelUsedQuota(t *testing.T) {
 	db := setupChannelTestDB()
 	model.DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试渠道
 	channel := model.Channel{
@@ -366,10 +339,7 @@ func TestChannel_UpdateChannelUsedQuota(t *testing.T) {
 func TestChannel_GetChannelByID(t *testing.T) {
 	db := setupChannelTestDB()
 	model.DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试渠道
 	channel := model.Channel{

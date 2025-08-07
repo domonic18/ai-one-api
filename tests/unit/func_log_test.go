@@ -5,29 +5,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/tests/common"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func setupLogTestDB() *gorm.DB {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		panic("failed to connect database")
-	}
-
-	// 设置 SQLite 标志
-	common.UsingSQLite = true
-
-	// 迁移表结构
-	err = db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Log{}, &model.Ability{}, &model.Token{})
-	if err != nil {
-		panic("failed to migrate database")
-	}
-
-	return db
+	return common.SetupMySQLTestDB()
 }
 
 // TestLog_RecordConsumeLog 测试消费日志记录功能
@@ -40,12 +25,7 @@ func TestLog_RecordConsumeLog(t *testing.T) {
 	db := setupLogTestDB()
 	model.DB = db
 	model.LOG_DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.User{})
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Log{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试用户
 	user := model.User{
@@ -109,12 +89,7 @@ func TestLog_GetUserLogs(t *testing.T) {
 	db := setupLogTestDB()
 	model.DB = db
 	model.LOG_DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.User{})
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Log{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试用户
 	user1 := model.User{
@@ -249,12 +224,7 @@ func TestLog_GetLogsByDateRange(t *testing.T) {
 	db := setupLogTestDB()
 	model.DB = db
 	model.LOG_DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.User{})
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Log{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试用户
 	user := model.User{
@@ -366,12 +336,7 @@ func TestLog_GetTopModels(t *testing.T) {
 	db := setupLogTestDB()
 	model.DB = db
 	model.LOG_DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.User{})
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Log{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试用户
 	user := model.User{
@@ -453,6 +418,11 @@ func TestLog_GetTopModels(t *testing.T) {
 }
 
 func TestLog_LogTypeValidation(t *testing.T) {
+	db := setupLogTestDB()
+	model.DB = db
+	model.LOG_DB = db
+	common.CleanupTestDB(db)
+
 	tests := []struct {
 		name     string
 		logType  int
@@ -517,12 +487,7 @@ func TestLog_LogEntryValidation(t *testing.T) {
 	db := setupLogTestDB()
 	model.DB = db
 	model.LOG_DB = db
-
-	// 清理测试数据
-	model.DB.Where("1 = 1").Delete(&model.User{})
-	model.DB.Where("1 = 1").Delete(&model.Channel{})
-	model.DB.Where("1 = 1").Delete(&model.Log{})
-	model.DB.Where("1 = 1").Delete(&model.Ability{})
+	common.CleanupTestDB(db)
 
 	// 创建测试用户
 	user := model.User{

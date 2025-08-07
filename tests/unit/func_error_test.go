@@ -4,29 +4,14 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/songquanpeng/one-api/common"
 	"github.com/songquanpeng/one-api/model"
+	"github.com/songquanpeng/one-api/tests/common"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 func setupErrorTestDB() *gorm.DB {
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
-	if err != nil {
-		panic("failed to connect database")
-	}
-
-	// 设置 SQLite 标志
-	common.UsingSQLite = true
-
-	// 迁移表结构
-	err = db.AutoMigrate(&model.User{}, &model.Token{}, &model.Channel{}, &model.Ability{})
-	if err != nil {
-		panic("failed to migrate database")
-	}
-
-	return db
+	return common.SetupMySQLTestDB()
 }
 
 // TestErrorHandling_DatabaseErrors 测试数据库错误处理功能
@@ -39,6 +24,7 @@ func setupErrorTestDB() *gorm.DB {
 func TestErrorHandling_DatabaseErrors(t *testing.T) {
 	db := setupErrorTestDB()
 	model.DB = db
+	common.CleanupTestDB(db)
 
 	tests := []struct {
 		name        string
@@ -111,6 +97,7 @@ func TestErrorHandling_DatabaseErrors(t *testing.T) {
 func TestErrorHandling_TokenValidationErrors(t *testing.T) {
 	db := setupErrorTestDB()
 	model.DB = db
+	common.CleanupTestDB(db)
 
 	user := &model.User{Username: "testuser", Password: "testpass"}
 	db.Create(user)
@@ -195,7 +182,7 @@ func TestErrorHandling_TokenValidationErrors(t *testing.T) {
 
 			// 只验证 token 是否被正确创建
 			var token model.Token
-			err := db.Where("key = ?", tt.token.Key).First(&token).Error
+			err := db.Where("`key` = ?", tt.token.Key).First(&token).Error
 			assert.NoError(t, err)
 			assert.Equal(t, tt.token.Key, token.Key)
 		})
