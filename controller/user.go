@@ -262,8 +262,30 @@ func GetUser(c *gin.Context) {
 func GetUserDashboard(c *gin.Context) {
 	id := c.GetInt(ctxkey.Id)
 	now := time.Now()
+
+	// 从查询参数中获取开始和结束时间戳
+	startStr := c.Query("start")
+	endStr := c.Query("end")
+
+	// 默认为最近7天
 	startOfDay := now.Truncate(24*time.Hour).AddDate(0, 0, -6).Unix()
 	endOfDay := now.Truncate(24 * time.Hour).Add(24*time.Hour - time.Second).Unix()
+
+	// 如果提供了开始时间，则使用提供的值
+	if startStr != "" {
+		if startTimestamp, err := strconv.ParseFloat(startStr, 64); err == nil {
+			startOfDay = int64(startTimestamp)
+			fmt.Printf("Dashboard API - 使用自定义开始时间: %s\n", time.Unix(startOfDay, 0).Format("2006-01-02 15:04:05"))
+		}
+	}
+
+	// 如果提供了结束时间，则使用提供的值
+	if endStr != "" {
+		if endTimestamp, err := strconv.ParseFloat(endStr, 64); err == nil {
+			endOfDay = int64(endTimestamp)
+			fmt.Printf("Dashboard API - 使用自定义结束时间: %s\n", time.Unix(endOfDay, 0).Format("2006-01-02 15:04:05"))
+		}
+	}
 
 	dashboards, err := model.SearchLogsByDayAndModel(id, int(startOfDay), int(endOfDay))
 	if err != nil {

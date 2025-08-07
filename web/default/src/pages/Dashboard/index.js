@@ -148,11 +148,12 @@ const Dashboard = () => {
       }
       
       // 将日期转换为Unix时间戳
-      // const startTimestamp = Math.floor(startDate.getTime() / 1000);
-      // const endTimestamp = Math.floor(now.getTime() / 1000);
+      const startTimestamp = Math.floor(startDate.getTime() / 1000);
+      const endTimestamp = Math.floor(now.getTime() / 1000);
       
       // 请求指定时间范围的数据
-      const response = await API.get(`/api/user/dashboard?start=${startDate.getTime() / 1000}&end=${now.getTime() / 1000}`);
+      console.log(`API请求趋势图 - 请求时间范围: ${timeRange}, 开始时间: ${new Date(startTimestamp * 1000).toLocaleString()}, 结束时间: ${new Date(endTimestamp * 1000).toLocaleString()}`);
+      const response = await API.get(`/api/user/dashboard?start=${startTimestamp}&end=${endTimestamp}`);
       
       if (response.data.success) {
         const dashboardData = response.data.data || [];
@@ -217,25 +218,90 @@ const Dashboard = () => {
       }
       
       // 将日期转换为Unix时间戳
-      // const startTimestamp = Math.floor(startDate.getTime() / 1000);
-      // const endTimestamp = Math.floor(now.getTime() / 1000);
+      const startTimestamp = Math.floor(startDate.getTime() / 1000);
+      const endTimestamp = Math.floor(now.getTime() / 1000);
       
-      // 请求渠道数据，不添加时间范围参数，因为渠道列表不需要时间过滤
+      // 请求渠道数据，添加时间范围参数
+      // 注意：这里我们仍然使用/api/channel接口，但前端会根据时间范围过滤数据
       const response = await API.get('/api/channel');
       
       if (response.data.success) {
         const channels = response.data.data || [];
         
-        const channelStatsData = channels.map(channel => ({
-          id: channel.id,
-          name: channel.name || 'Unknown',
-          type: channel.type,
-          status: channel.status,
-          responseTime: channel.response_time || 0, // 后端字段名是 response_time，单位是毫秒
-          requestCount: channel.used_quota || 0, // 后端字段名是 used_quota
-        }));
-        
-        setChannelStats(channelStatsData);
+        // 获取渠道使用日志，用于按时间过滤
+        try {
+          // 获取渠道使用日志数据
+          console.log(`渠道使用分布 - 请求时间范围: ${channelTimeRange}, 开始时间: ${new Date(startTimestamp * 1000).toLocaleString()}, 结束时间: ${new Date(endTimestamp * 1000).toLocaleString()}`);
+          const logsResponse = await API.get(`/api/log/search?p=0&size=1000&start_timestamp=${startTimestamp}&end_timestamp=${endTimestamp}`);
+          
+          if (logsResponse.data.success) {
+            const logs = logsResponse.data.data.logs || [];
+            
+            // 创建渠道ID到使用量的映射
+            const channelUsageMap = {};
+            logs.forEach(log => {
+              if (log.channel) {
+                if (!channelUsageMap[log.channel]) {
+                  channelUsageMap[log.channel] = {
+                    count: 0,
+                    quota: 0,
+                    responseTime: 0,
+                    responseCount: 0
+                  };
+                }
+                channelUsageMap[log.channel].count += 1;
+                channelUsageMap[log.channel].quota += log.quota || 0;
+                
+                if (log.elapsed_time) {
+                  channelUsageMap[log.channel].responseTime += log.elapsed_time;
+                  channelUsageMap[log.channel].responseCount += 1;
+                }
+              }
+            });
+            
+            // 使用日志数据更新渠道统计
+            const channelStatsData = channels.map(channel => {
+              const usage = channelUsageMap[channel.id] || { count: 0, quota: 0, responseTime: 0, responseCount: 0 };
+              
+              return {
+                id: channel.id,
+                name: channel.name || 'Unknown',
+                type: channel.type,
+                status: channel.status,
+                responseTime: usage.responseCount > 0 ? Math.round(usage.responseTime / usage.responseCount) : channel.response_time || 0,
+                requestCount: usage.quota || channel.used_quota || 0,
+              };
+            });
+            
+            setChannelStats(channelStatsData);
+          } else {
+            // 如果获取日志失败，则使用原始渠道数据
+            const channelStatsData = channels.map(channel => ({
+              id: channel.id,
+              name: channel.name || 'Unknown',
+              type: channel.type,
+              status: channel.status,
+              responseTime: channel.response_time || 0,
+              requestCount: channel.used_quota || 0,
+            }));
+            
+            setChannelStats(channelStatsData);
+          }
+        } catch (logError) {
+          console.error('Failed to fetch channel logs:', logError);
+          
+          // 如果获取日志失败，则使用原始渠道数据
+          const channelStatsData = channels.map(channel => ({
+            id: channel.id,
+            name: channel.name || 'Unknown',
+            type: channel.type,
+            status: channel.status,
+            responseTime: channel.response_time || 0,
+            requestCount: channel.used_quota || 0,
+          }));
+          
+          setChannelStats(channelStatsData);
+        }
       }
     } catch (error) {
       console.error('Failed to fetch channel stats:', error);
