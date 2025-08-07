@@ -57,31 +57,31 @@ WHERE TABLE_SCHEMA = DATABASE()
 SET @create_table_sql = IF(@extended_logs_exists = 0, 
     'CREATE TABLE extended_logs (
         id bigint PRIMARY KEY AUTO_INCREMENT,
-        
-        -- 关联原始日志
-        log_id bigint NOT NULL,                          -- 关联OneAPI原始日志ID
-        
-        -- 抽象化的身份标识信息（不耦合具体业务）
-        external_user_id varchar(100) DEFAULT '',       -- 外部用户ID（如teacher_id）
-        user_group varchar(100) DEFAULT '',             -- OneAPI用户组
-        
-        -- 多维度统计维度信息（JSON格式，灵活扩展）
-        dimension_info JSON DEFAULT NULL,               -- 维度信息，如：{"school_id": 1, "school_name": "北京中学", "subject_id": 10, "subject_name": "数学组"}
-        
-        -- 管理字段
+        log_id bigint NOT NULL,
+        external_user_id varchar(100) DEFAULT "",
+        user_group varchar(100) DEFAULT "",
+        dimension_info JSON DEFAULT NULL,
         created_at datetime(3) DEFAULT NULL,
-        updated_at datetime(3) DEFAULT NULL,
-        
-        -- 基础索引
-        UNIQUE INDEX idx_log_id_unique (log_id),
-        INDEX idx_external_user_id (external_user_id),
-        INDEX idx_user_group (user_group),
-        INDEX idx_created_at (created_at)
+        updated_at datetime(3) DEFAULT NULL
     )',
     'SELECT "extended_logs表已存在，跳过创建" as message'
 );
 
 PREPARE stmt FROM @create_table_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- 为extended_logs表添加索引（如果表是新创建的）
+SET @add_indexes_sql = IF(@extended_logs_exists = 0, 
+    'ALTER TABLE extended_logs 
+     ADD UNIQUE INDEX idx_log_id_unique (log_id),
+     ADD INDEX idx_external_user_id (external_user_id),
+     ADD INDEX idx_user_group (user_group),
+     ADD INDEX idx_created_at (created_at)',
+    'SELECT "extended_logs表已存在，跳过索引创建" as message'
+);
+
+PREPARE stmt FROM @add_indexes_sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
