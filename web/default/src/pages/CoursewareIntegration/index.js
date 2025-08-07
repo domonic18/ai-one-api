@@ -118,7 +118,32 @@ const CoursewareIntegration = () => {
       setStatus(prev => ({ ...prev, isSyncing: true }));
       const response = await API.post('/api/courseware/sync');
       if (response.data.success) {
-        showSuccess('用户同步成功');
+        // 同步任务已启动，等待一段时间后检查状态
+        showSuccess('同步任务已启动，正在检查状态...');
+        
+        // 等待3秒后检查状态
+        setTimeout(async () => {
+          try {
+            const statusResponse = await API.get('/api/courseware/status');
+            if (statusResponse.data.success) {
+              const statusData = statusResponse.data.data || {};
+              
+              // 检查是否有错误信息
+              if (statusData.error_message && statusData.error_message.trim() !== '') {
+                showError('同步失败: ' + statusData.error_message);
+              } else if (!statusData.is_connected) {
+                showError('同步失败: 无法连接到课件平台');
+              } else {
+                showSuccess('用户同步成功');
+              }
+            } else {
+              showError('无法获取同步状态');
+            }
+          } catch (statusError) {
+            showError('检查同步状态失败: ' + statusError.message);
+          }
+        }, 3000);
+        
         loadStatus();
         loadCacheData();
       } else {
@@ -164,29 +189,45 @@ const CoursewareIntegration = () => {
 
   const renderConnectionStatus = () => {
     if (status.isConnected) {
-      return <Label color="green">已连接</Label>;
+      return <Label color="green" size="large"><Icon name="check circle" />已连接</Label>;
     }
-    return <Label color="red">未连接</Label>;
+    return <Label color="red" size="large"><Icon name="x circle" />未连接</Label>;
   };
 
   const renderSyncStatus = () => {
     if (status.isSyncing) {
       return (
         <div>
-          <Label color="blue">同步中</Label>
-          <Progress percent={status.syncProgress} indicating />
+          <Label color="blue" size="large"><Icon name="sync" loading />同步中</Label>
+          <Progress percent={status.syncProgress} indicating size="small" style={{ marginTop: '5px' }} />
         </div>
       );
     }
-    return <Label color="grey">空闲</Label>;
+    return <Label color="grey" size="large"><Icon name="clock outline" />空闲</Label>;
   };
 
   const renderErrorMessage = () => {
     if (status.error_message) {
       return (
-        <Message warning>
-          <Message.Header>连接状态说明</Message.Header>
-          <p>{status.error_message}</p>
+        <Message negative>
+          <Message.Header>
+            <Icon name="warning circle" />
+            连接错误
+          </Message.Header>
+          <p style={{ marginBottom: '10px' }}>{status.error_message}</p>
+          <p style={{ fontSize: '0.9em', color: '#666' }}>
+            <strong>可能的原因：</strong>
+            <br />• 课件平台系统未启动或无法访问
+            <br />• 网络连接问题
+            <br />• API配置错误（URL、密钥等）
+            <br />• 防火墙或代理设置阻止连接
+          </p>
+          <p style={{ fontSize: '0.9em', color: '#666' }}>
+            <strong>建议操作：</strong>
+            <br />• 检查课件平台系统是否正常运行
+            <br />• 验证配置中的URL和API密钥是否正确
+            <br />• 尝试点击"测试连接"按钮验证连接状态
+          </p>
         </Message>
       );
     }
