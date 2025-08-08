@@ -68,33 +68,7 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 
-		// 构造候选用户组列表：
-		// - 若存在令牌：按 token.user_groups 顺序尝试；如果有身份解析结果，则将匹配到的组置于首位，其余按原顺序排在后面
-		// - 若不存在令牌：仅尝试当前 userGroup
-		var groupsToTry []string
-		if token != nil {
-			all := token.GetUserGroups()
-			if hasIdentityGroup && identityGroup != "" {
-				resolvedGroup := identityGroup.(string)
-				primary := token.SelectGroupByUserGroup(resolvedGroup)
-				// 去重并保序：primary 优先，然后追加其余
-				seen := map[string]bool{}
-				if primary != "" {
-					groupsToTry = append(groupsToTry, primary)
-					seen[primary] = true
-				}
-				for _, g := range all {
-					if !seen[g] {
-						groupsToTry = append(groupsToTry, g)
-						seen[g] = true
-					}
-				}
-			} else {
-				groupsToTry = append(groupsToTry, all...)
-			}
-		} else {
-			groupsToTry = []string{userGroup}
-		}
+		// 取消多用户组回退：仅在最终确定的 userGroup 内查找可用渠道
 
 		var requestModel string
 		var channel *model.Channel
@@ -117,18 +91,9 @@ func Distribute() func(c *gin.Context) {
 		} else {
 			requestModel = c.GetString(ctxkey.RequestModel)
 			var err error
-			// 按候选组顺序尝试获取可用渠道
-			for _, grp := range groupsToTry {
-				channel, err = model.CacheGetRandomSatisfiedChannel(grp, requestModel, false)
-				if err == nil && channel != nil {
-					userGroup = grp
-					break
-				}
-				logger.Debugf(ctx, "分组回退: 组=%s 对于模型 %s 无可用渠道，继续尝试下一组", grp, requestModel)
-			}
-			if channel == nil {
-				// 所有分组均无可用渠道
-				message := fmt.Sprintf("当前令牌可用分组 %v 下对于模型 %s 均无可用渠道", groupsToTry, requestModel)
+			channel, err = model.CacheGetRandomSatisfiedChannel(userGroup, requestModel, false)
+			if err != nil || channel == nil {
+				message := fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道", userGroup, requestModel)
 				abortWithMessage(c, http.StatusServiceUnavailable, message)
 				return
 			}
