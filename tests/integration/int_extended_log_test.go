@@ -9,11 +9,29 @@ import (
 	"testing"
 	"time"
 
+	mididentity "github.com/songquanpeng/one-api/middleware/identity"
 	"github.com/songquanpeng/one-api/model"
 	"github.com/songquanpeng/one-api/model/identity"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// 测试用模拟身份解析器，确保异步扩展日志能够写入
+type mockResolver struct{}
+
+func (m *mockResolver) ResolveGroup(ctx context.Context, externalIdentity string) string {
+	return "test_group"
+}
+
+func (m *mockResolver) ResolveModel(ctx context.Context, externalIdentity string, requestModel string) string {
+	return requestModel
+}
+
+func (m *mockResolver) GetUserDetails(ctx context.Context, externalIdentity string) map[string]interface{} {
+	return map[string]interface{}{
+		"external_user_id": externalIdentity,
+	}
+}
 
 // TestIntegration_ExtendedLog_APIEndpoints 测试扩展日志API端点的集成
 // 测试目的：验证扩展日志API端点的完整功能，包括权限控制、数据查询和响应格式
@@ -138,9 +156,11 @@ func TestIntegration_ExtendedLog_APIEndpoints(t *testing.T) {
 			method:         "GET",
 			url:            "/api/log/extended/",
 			headers:        userHeaders,
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
-				// 普通用户应该被拒绝访问
+				var response map[string]interface{}
+				_ = json.Unmarshal(w.Body.Bytes(), &response)
+				assert.Equal(t, false, response["success"])
 			},
 		},
 		{
@@ -148,9 +168,11 @@ func TestIntegration_ExtendedLog_APIEndpoints(t *testing.T) {
 			method:         "GET",
 			url:            fmt.Sprintf("/api/log/extended/%d", testLogs[0].LogId),
 			headers:        userHeaders,
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
-				// 普通用户应该被拒绝访问
+				var response map[string]interface{}
+				_ = json.Unmarshal(w.Body.Bytes(), &response)
+				assert.Equal(t, false, response["success"])
 			},
 		},
 		{
@@ -158,9 +180,11 @@ func TestIntegration_ExtendedLog_APIEndpoints(t *testing.T) {
 			method:         "GET",
 			url:            "/api/log/extended/statistics",
 			headers:        userHeaders,
-			expectedStatus: http.StatusForbidden,
+			expectedStatus: http.StatusOK,
 			checkResponse: func(t *testing.T, w *httptest.ResponseRecorder) {
-				// 普通用户应该被拒绝访问
+				var response map[string]interface{}
+				_ = json.Unmarshal(w.Body.Bytes(), &response)
+				assert.Equal(t, false, response["success"])
 			},
 		},
 	}
@@ -259,11 +283,17 @@ func TestIntegration_ExtendedLog_RecordingFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, parsedDimensionInfo)
 
-		// 验证所有维度信息都被正确保存
+		// 验证所有维度信息都被正确保存（处理数字反序列化为float64的情况）
 		for key, expectedValue := range *dimensionInfo {
 			actualValue, exists := (*parsedDimensionInfo)[key]
 			assert.True(t, exists, "Key %s should exist", key)
-			assert.Equal(t, expectedValue, actualValue, "Value for key %s should match", key)
+			switch ev := expectedValue.(type) {
+			case int:
+				assert.IsType(t, float64(0), actualValue, "numeric fields should be float64 after JSON unmarshal")
+				assert.Equal(t, float64(ev), actualValue, "Value for key %s should match", key)
+			default:
+				assert.Equal(t, expectedValue, actualValue, "Value for key %s should match", key)
+			}
 		}
 
 		// 测试异步记录函数
@@ -395,6 +425,9 @@ func TestIntegration_ExtendedLog_ErrorHandling(t *testing.T) {
 	// 清理测试数据
 	cleanupExtendedLogTestData()
 
+	// 设置模拟身份解析器，确保并发测试能写入日志
+	setupMockIdentityResolver()
+
 	// 创建测试用户
 	userName := "user_" + t.Name()
 	testUser := createTestUser(db, userName, "password123", model.RoleCommonUser)
@@ -453,14 +486,21 @@ func TestIntegration_ExtendedLog_ErrorHandling(t *testing.T) {
 				}(i)
 			}
 
-			// 等待所有goroutine完成
+			// 等待所有goroutine完成（这些goroutine只是触发异步写入）
 			for i := 0; i < concurrency; i++ {
 				<-done
 			}
 
-			// 验证所有日志都被创建
+			// 由于 RecordExtendedLog 内部再次异步，增加轮询等待，直至达到预期数量或超时
 			var count int64
-			model.DB.Model(&identity.ExtendedLog{}).Where("log_id >= ? AND log_id < ?", 2000, 2010).Count(&count)
+			deadline := time.Now().Add(2 * time.Second)
+			for {
+				model.DB.Model(&identity.ExtendedLog{}).Where("log_id >= ? AND log_id < ?", 2000, 2010).Count(&count)
+				if count == int64(concurrency) || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
 			assert.Equal(t, int64(concurrency), count)
 		})
 	})
@@ -513,6 +553,5 @@ func createTestExtendedLogs() []*identity.ExtendedLog {
 
 // 辅助函数：设置模拟身份解析器
 func setupMockIdentityResolver() {
-	// 这里可以设置模拟的身份解析器用于测试
-	// 实际实现中可能需要根据具体的身份解析器接口来设置
+	mididentity.SetIdentityResolver(&mockResolver{})
 }

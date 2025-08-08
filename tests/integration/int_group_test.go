@@ -9,6 +9,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common/random"
 	"github.com/songquanpeng/one-api/controller"
@@ -37,6 +39,10 @@ func setupIntegrationTestDB() {
 func setupGroupTestRouter() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.Default()
+
+	// 设置session中间件，避免中间件访问sessions.Default时panic
+	store := cookie.NewStore([]byte("test-secret"))
+	r.Use(sessions.Sessions("one-api", store))
 
 	// 添加用户组管理路由
 	groupRoute := r.Group("/api/group")
@@ -93,7 +99,7 @@ func TestGroupAPI_完整流程(t *testing.T) {
 		jsonData, err := json.Marshal(createData)
 		assert.NoError(t, err)
 
-		req, err := http.NewRequest("POST", "/api/group", bytes.NewBuffer(jsonData))
+		req, err := http.NewRequest("POST", "/api/group/", bytes.NewBuffer(jsonData))
 		assert.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -117,7 +123,7 @@ func TestGroupAPI_完整流程(t *testing.T) {
 	})
 
 	t.Run("获取用户组列表", func(t *testing.T) {
-		req, err := http.NewRequest("GET", "/api/group", nil)
+		req, err := http.NewRequest("GET", "/api/group/", nil)
 		assert.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+token)
 
@@ -262,9 +268,9 @@ func TestGroupAPI_权限控制(t *testing.T) {
 		path   string
 		body   map[string]interface{}
 	}{
-		{"获取用户组列表", "GET", "/api/group", nil},
+		{"获取用户组列表", "GET", "/api/group/", nil},
 		{"获取用户组详情", "GET", "/api/group/detail", nil},
-		{"创建用户组", "POST", "/api/group", map[string]interface{}{
+		{"创建用户组", "POST", "/api/group/", map[string]interface{}{
 			"name":        groupName,
 			"description": "测试用户组",
 		}},
@@ -293,8 +299,11 @@ func TestGroupAPI_权限控制(t *testing.T) {
 			w := httptest.NewRecorder()
 			r.ServeHTTP(w, req)
 
-			// 普通用户应该被拒绝访问
-			assert.Equal(t, http.StatusForbidden, w.Code)
+			// 按项目约定，鉴权失败返回200 + success=false
+			assert.Equal(t, http.StatusOK, w.Code)
+			var resp map[string]interface{}
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
+			assert.Equal(t, false, resp["success"])
 		})
 	}
 }
@@ -320,7 +329,7 @@ func TestGroupAPI_错误场景(t *testing.T) {
 		jsonData, err := json.Marshal(createData)
 		assert.NoError(t, err)
 
-		req, err := http.NewRequest("POST", "/api/group", bytes.NewBuffer(jsonData))
+		req, err := http.NewRequest("POST", "/api/group/", bytes.NewBuffer(jsonData))
 		assert.NoError(t, err)
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+token)
@@ -466,7 +475,7 @@ func TestGroupAPI_并发操作(t *testing.T) {
 				jsonData, err := json.Marshal(createData)
 				assert.NoError(t, err)
 
-				req, err := http.NewRequest("POST", "/api/group", bytes.NewBuffer(jsonData))
+				req, err := http.NewRequest("POST", "/api/group/", bytes.NewBuffer(jsonData))
 				assert.NoError(t, err)
 				req.Header.Set("Content-Type", "application/json")
 				req.Header.Set("Authorization", "Bearer "+token)

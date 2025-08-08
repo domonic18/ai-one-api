@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/songquanpeng/one-api/common/client"
+	"github.com/songquanpeng/one-api/common/config"
 	"github.com/songquanpeng/one-api/middleware/identity"
 )
 
@@ -108,10 +109,14 @@ func NewExtendedCoursePlatformMock() *ExtendedCoursePlatformMock {
 		store: store,
 	}
 
-	// 设置路由
+	// 设置路由（兼容无前缀与 /api/v1 前缀两种写法）
 	router.GET("/teacher/:teacherId/info", mock.getTeacherInfo)
 	router.GET("/teachers/ids", mock.getAllTeacherIds)
 	router.POST("/teachers/batch", mock.batchGetUserInfo)
+
+	router.GET("/api/v1/teacher/:teacherId/info", mock.getTeacherInfo)
+	router.GET("/api/v1/teachers/ids", mock.getAllTeacherIds)
+	router.POST("/api/v1/teachers/batch", mock.batchGetUserInfo)
 
 	// 创建测试服务器
 	mock.server = httptest.NewServer(router)
@@ -407,10 +412,14 @@ func TestIdentity_CoursewareAPIClient_集成测试(t *testing.T) {
 	mockServer := NewExtendedCoursePlatformMock()
 	defer mockServer.Close()
 
-	// 创建API客户端
+	// 直接设置配置变量并初始化客户端（确保 httpClient 非空）
+	config.CoursewarePlatformBaseURL = mockServer.URL()
+	config.CoursewarePlatformAPIKey = "test-api-key"
+	config.CoursewarePlatformTimeout = 2
+	client.InitCoursewareClient()
+
+	// 获取API客户端
 	apiClient := client.GetCoursewareClient()
-	apiClient.SetBaseURL(mockServer.URL())
-	apiClient.SetAPIKey("test-api-key")
 
 	t.Run("获取单个老师信息", func(t *testing.T) {
 		// 测试获取存在的老师信息
