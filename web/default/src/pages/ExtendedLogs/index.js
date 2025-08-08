@@ -376,12 +376,19 @@ const ExtendedLogs = () => {
     return content;
   };
 
+  // 表单提交（查询）
+  const handleSubmit = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    setActivePage(1);
+    loadLogs(0);
+  };
+
   // 渲染筛选器
   const renderFilters = () => {
     return (
       <Segment>
         <Header size="small">筛选条件</Header>
-        <Form>
+        <Form onSubmit={handleSubmit}>
           <Form.Group widths="equal">
             <Form.Field>
               <label>时间范围</label>
@@ -399,6 +406,13 @@ const ExtendedLogs = () => {
                 placeholder="输入教师ID"
                 value={filters.external_user_id}
                 onChange={(e) => handleFilterChange('external_user_id', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSubmit(e);
+                  }
+                }}
               />
             </Form.Field>
             <Form.Field>
@@ -407,11 +421,21 @@ const ExtendedLogs = () => {
                 placeholder="输入用户组"
                 value={filters.user_group}
                 onChange={(e) => handleFilterChange('user_group', e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    handleSubmit(e);
+                  }
+                }}
               />
             </Form.Field>
             <Form.Field>
               <label>&nbsp;</label>
-              <Button onClick={resetFilters}>重置</Button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Button primary type="submit">查询</Button>
+                <Button type="button" onClick={resetFilters}>重置</Button>
+              </div>
             </Form.Field>
           </Form.Group>
           
