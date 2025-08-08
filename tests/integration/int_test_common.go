@@ -44,10 +44,14 @@ func setupIntegrationTest() (*gin.Engine, *gorm.DB) {
 	// 初始化课件平台API客户端
 	client.InitCoursewareClient()
 
-	// 初始化Redis客户端
-	err := common.InitRedisClient()
-	if err != nil {
-		panic("failed to initialize Redis client: " + err.Error())
+	// 初始化Redis客户端（允许通过环境变量禁用，或失败时降级为禁用）
+	if os.Getenv("DISABLE_TEST_REDIS") == "true" {
+		common.RedisEnabled = false
+	} else {
+		err := common.InitRedisClient()
+		if err != nil {
+			common.RedisEnabled = false
+		}
 	}
 
 	// 连接MySQL数据库
