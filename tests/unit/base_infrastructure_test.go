@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -36,10 +37,13 @@ func setupSimpleTestDB() *gorm.DB {
 	model.DB = db
 	model.LOG_DB = db
 
-	// 先删除可能存在的表，避免冲突
-	db.Migrator().DropTable(&identity.ExtendedLog{})
+	// 先删除可能存在的表，避免冲突（忽略不存在错误）
+	_ = db.Migrator().DropTable(&identity.ExtendedLog{})
 
 	// 迁移所有必要的表结构
+	// 再次确保表不存在，避免并发迁移冲突
+	_ = db.Exec("DROP TABLE IF EXISTS extended_logs").Error
+
 	err = db.AutoMigrate(
 		&model.User{},
 		&model.Token{},
@@ -86,7 +90,7 @@ func TestSimple_DatabaseConnection(t *testing.T) {
 		Quota:       1000,
 	}
 
-	err := user.Insert(nil, 0)
+	err := user.Insert(context.TODO(), 0)
 	assert.NoError(t, err)
 	assert.NotZero(t, user.Id)
 
@@ -122,7 +126,7 @@ func TestSimple_TokenOperations(t *testing.T) {
 		Group:       "default",
 		Quota:       1000,
 	}
-	err := user.Insert(nil, 0)
+	err := user.Insert(context.TODO(), 0)
 	assert.NoError(t, err)
 
 	// 测试令牌验证 - 由于Redis未配置，这个测试会失败，所以我们跳过
