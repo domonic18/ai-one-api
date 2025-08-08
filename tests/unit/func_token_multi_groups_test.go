@@ -267,12 +267,7 @@ func TestToken_MultiUserGroups_JSON序列化(t *testing.T) {
 			jsonData, err := json.Marshal(tt.token)
 			assert.NoError(t, err)
 
-			// 验证JSON包含group字段（向后兼容）
-			var jsonMap map[string]interface{}
-			err = json.Unmarshal(jsonData, &jsonMap)
-			assert.NoError(t, err)
-			assert.Contains(t, jsonMap, "group")
-			assert.Equal(t, "beijing_math_group", jsonMap["group"])
+			// 不再校验兼容字段 group
 
 			// 反序列化令牌
 			var newToken model.Token
@@ -290,63 +285,7 @@ func TestToken_MultiUserGroups_JSON序列化(t *testing.T) {
 	}
 }
 
-// TestToken_MultiUserGroups_向后兼容性 测试令牌多用户组功能的向后兼容性
-// 测试目的：验证新功能与现有系统的兼容性
-// 测试内容：
-// 1. 测试只有group字段的旧格式JSON
-// 2. 测试空用户组的情况
-// 3. 测试无效JSON格式的处理
-// 4. 验证默认行为
-func TestToken_MultiUserGroups_向后兼容性(t *testing.T) {
-	db := setupTokenMultiGroupsTestDB()
-	model.DB = db
-	common.CleanupTestDB(db)
-
-	tests := []struct {
-		name           string
-		jsonData       string
-		expectedGroups []string
-		expectedError  bool
-		description    string
-	}{
-		{
-			name:           "只有group字段的旧格式",
-			jsonData:       `{"id":1,"user_id":1,"key":"test","name":"Test","group":"beijing_math_group"}`,
-			expectedGroups: []string{"beijing_math_group"},
-			expectedError:  false,
-			description:    "旧格式JSON应该正确转换为多用户组格式",
-		},
-		{
-			name:           "空用户组",
-			jsonData:       `{"id":1,"user_id":1,"key":"test","name":"Test","user_groups":""}`,
-			expectedGroups: []string{"default"},
-			expectedError:  false,
-			description:    "空用户组应该使用默认组",
-		},
-		{
-			name:           "无效JSON格式",
-			jsonData:       `{"id":1,"user_id":1,"key":"test","name":"Test","user_groups":"invalid json"}`,
-			expectedGroups: []string{"default"},
-			expectedError:  false,
-			description:    "无效JSON应该使用默认组",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var token model.Token
-			err := json.Unmarshal([]byte(tt.jsonData), &token)
-
-			if tt.expectedError {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-				userGroups := token.GetUserGroups()
-				assert.Equal(t, tt.expectedGroups, userGroups, tt.description)
-			}
-		})
-	}
-}
+// 兼容测试已移除：不再支持旧的 group 字段反序列化
 
 // TestToken_MultiUserGroups_边界情况 测试令牌多用户组功能的边界情况
 // 测试目的：验证功能在各种边界情况下的正确性

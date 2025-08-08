@@ -92,7 +92,6 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.GET("/:id", controller.GetToken)
 			tokenRoute.POST("/", controller.AddToken)
 			tokenRoute.PUT("/", controller.UpdateToken)
-			tokenRoute.PUT("/:id/group", controller.UpdateTokenGroup)
 			tokenRoute.PUT("/:id/groups", controller.UpdateTokenGroups) // 新增：多用户组配置
 			tokenRoute.GET("/:id/groups", controller.GetTokenGroups)    // 新增：获取用户组列表
 			tokenRoute.DELETE("/:id", controller.DeleteToken)

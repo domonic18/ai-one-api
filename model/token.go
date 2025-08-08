@@ -38,43 +38,6 @@ type Token struct {
 	UserGroups     *string `json:"user_groups" gorm:"type:text"`       // token user groups with priority (JSON array)
 }
 
-// MarshalJSON 自定义JSON序列化，添加group字段用于兼容性
-func (t *Token) MarshalJSON() ([]byte, error) {
-	type Alias Token
-	return json.Marshal(&struct {
-		*Alias
-		Group string `json:"group"` // 兼容性字段
-	}{
-		Alias: (*Alias)(t),
-		Group: t.GetPrimaryGroup(),
-	})
-}
-
-// UnmarshalJSON 自定义JSON反序列化，处理group字段的兼容性
-func (t *Token) UnmarshalJSON(data []byte) error {
-	type Alias Token
-	aux := &struct {
-		*Alias
-		Group *string `json:"group"` // 兼容性字段
-	}{
-		Alias: (*Alias)(t),
-	}
-
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	// 如果只有group字段而没有user_groups字段，将group转换为user_groups
-	if aux.Group != nil && (t.UserGroups == nil || *t.UserGroups == "") {
-		err := t.SetUserGroups([]string{*aux.Group})
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func GetAllUserTokens(userId int, startIdx int, num int, order string) ([]*Token, error) {
 	var tokens []*Token
 	var err error

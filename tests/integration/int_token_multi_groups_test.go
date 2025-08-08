@@ -51,16 +51,16 @@ func TestToken_MultiUserGroups_API_创建令牌(t *testing.T) {
 			expectedGroups []string
 			description    string
 		}{
-            {
-                name: "单个用户组令牌",
-                tokenData: map[string]interface{}{
-                    "name":         "单用户组令牌",
-                    "expired_time": -1,
-                    "remain_quota": 1000,
-                },
-                expectedGroups: []string{"vip"},
-                description:    "创建单个用户组令牌",
-            },
+			{
+				name: "单个用户组令牌",
+				tokenData: map[string]interface{}{
+					"name":         "单用户组令牌",
+					"expired_time": -1,
+					"remain_quota": 1000,
+				},
+				expectedGroups: []string{"vip"},
+				description:    "创建单个用户组令牌",
+			},
 			{
 				name: "多个用户组令牌",
 				tokenData: map[string]interface{}{
@@ -85,7 +85,7 @@ func TestToken_MultiUserGroups_API_创建令牌(t *testing.T) {
 
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
-                // 发送创建令牌请求
+				// 发送创建令牌请求
 				w := sendRequest(r, "POST", "/api/token/", tt.tokenData, headers)
 
 				assert.Equal(t, http.StatusOK, w.Code)
@@ -96,31 +96,31 @@ func TestToken_MultiUserGroups_API_创建令牌(t *testing.T) {
 
 				assert.Equal(t, true, response["success"])
 
-                // 验证返回的令牌数据
+				// 验证返回的令牌数据
 				if data, ok := response["data"].(map[string]interface{}); ok {
 					assert.Contains(t, data, "id")
 					assert.Contains(t, data, "key")
 					assert.Equal(t, tt.tokenData["name"], data["name"])
 
-                    // 统一通过更新接口设置期望的用户组后再校验
-                    tokenId := toString(data["id"])
-                    updatePayload := map[string]interface{}{
-                        "user_groups": tt.expectedGroups,
-                    }
-                    w2 := sendRequest(r, "PUT", "/api/token/"+tokenId+"/groups", updatePayload, headers)
-                    assert.Equal(t, http.StatusOK, w2.Code)
-                    var resp2 map[string]interface{}
-                    _ = json.Unmarshal(w2.Body.Bytes(), &resp2)
-                    assert.Equal(t, true, resp2["success"])
-                    if data2, ok2 := resp2["data"].(map[string]interface{}); ok2 {
-                        if userGroups, ok := data2["user_groups"].([]interface{}); ok {
-                            actualGroups := make([]string, len(userGroups))
-                            for i, group := range userGroups {
-                                actualGroups[i] = group.(string)
-                            }
-                            assert.Equal(t, tt.expectedGroups, actualGroups)
-                        }
-                    }
+					// 统一通过更新接口设置期望的用户组后再校验
+					tokenId := toString(data["id"])
+					updatePayload := map[string]interface{}{
+						"user_groups": tt.expectedGroups,
+					}
+					w2 := sendRequest(r, "PUT", "/api/token/"+tokenId+"/groups", updatePayload, headers)
+					assert.Equal(t, http.StatusOK, w2.Code)
+					var resp2 map[string]interface{}
+					_ = json.Unmarshal(w2.Body.Bytes(), &resp2)
+					assert.Equal(t, true, resp2["success"])
+					if data2, ok2 := resp2["data"].(map[string]interface{}); ok2 {
+						if userGroups, ok := data2["user_groups"].([]interface{}); ok {
+							actualGroups := make([]string, len(userGroups))
+							for i, group := range userGroups {
+								actualGroups[i] = group.(string)
+							}
+							assert.Equal(t, tt.expectedGroups, actualGroups)
+						}
+					}
 				}
 			})
 		}
@@ -203,11 +203,7 @@ func TestToken_MultiUserGroups_API_获取令牌(t *testing.T) {
 					}
 					assert.Equal(t, expectedGroups, actualGroups)
 				}
-
-				// 验证group字段（向后兼容）
-				if group, ok := data["group"].(string); ok {
-					assert.Equal(t, "beijing_math_group", group)
-				}
+				// 不再校验兼容字段 group
 			}
 		}
 	})
@@ -326,14 +322,7 @@ func TestToken_MultiUserGroups_API_更新令牌(t *testing.T) {
 							assert.Equal(t, tt.expectedGroups, actualGroups)
 						}
 
-						// 验证group字段（向后兼容）
-						if group, ok := data["group"].(string); ok {
-							if len(tt.expectedGroups) > 0 {
-								assert.Equal(t, tt.expectedGroups[0], group)
-							} else {
-								assert.Equal(t, "default", group)
-							}
-						}
+						// 不再校验兼容字段 group
 					}
 				})
 			}
@@ -425,7 +414,6 @@ func TestToken_MultiUserGroups_API_获取所有令牌(t *testing.T) {
 					assert.Contains(t, token, "key")
 					assert.Contains(t, token, "name")
 					assert.Contains(t, token, "user_groups")
-					assert.Contains(t, token, "group") // 向后兼容字段
 				}
 			}
 		}
@@ -503,9 +491,7 @@ func TestToken_MultiUserGroups_API_搜索令牌(t *testing.T) {
 			if groups, ok := data["user_groups"].([]interface{}); ok {
 				assert.Len(t, groups, 3)
 			}
-			if group, ok := data["group"].(string); ok {
-				assert.Equal(t, "vip", group)
-			}
+			// 不再校验兼容字段 group
 		}
 	})
 }
