@@ -115,11 +115,22 @@ const TokensTable = () => {
       const res = await API.get(`/api/token/?p=${startIdx}&order=${orderBy}`);
       const { success, message, data } = res.data;
       if (success) {
-        // 令牌数据现在已经包含user_groups字段，提取主要用户组用于显示
-        const tokensWithGroups = data.map(token => ({
-          ...token,
-          group: (token.user_groups && token.user_groups.length > 0) ? token.user_groups[0] : 'default'
-        }));
+        // 令牌数据现在已经包含 user_groups 字段，需兼容字符串或数组两种形态
+        const tokensWithGroups = data.map((token) => {
+          let groupsArr = [];
+          if (Array.isArray(token.user_groups)) {
+            groupsArr = token.user_groups;
+          } else if (typeof token.user_groups === 'string') {
+            try {
+              const parsed = JSON.parse(token.user_groups);
+              if (Array.isArray(parsed)) groupsArr = parsed;
+            } catch (e) {
+              // ignore parse error, fallback to empty
+            }
+          }
+          const group = groupsArr.length > 0 ? groupsArr[0] : 'default';
+          return { ...token, group };
+        });
 
         if (startIdx === 0) {
           setTokens(tokensWithGroups);
@@ -168,7 +179,18 @@ const TokensTable = () => {
     try {
       const response = await API.get(`/api/token/${tokenId}/groups`);
       if (response.data.success) {
-        return response.data.data.user_groups || ['default'];
+        let groups = response.data.data.user_groups;
+        if (typeof groups === 'string') {
+          try {
+            groups = JSON.parse(groups);
+          } catch (e) {
+            groups = [];
+          }
+        }
+        if (!Array.isArray(groups) || groups.length === 0) {
+          groups = ['default'];
+        }
+        return groups;
       } else {
         console.error('获取令牌用户组失败:', response.data.message);
         return ['default'];
@@ -240,12 +262,10 @@ const TokensTable = () => {
     setSelectedTokenGroups(selectedTokenGroups.filter(g => g !== groupName));
   };
 
-  // 移动用户组位置（调整优先级）
-  const moveGroup = (fromIndex, toIndex) => {
-    const newGroups = [...selectedTokenGroups];
-    const [movedGroup] = newGroups.splice(fromIndex, 1);
-    newGroups.splice(toIndex, 0, movedGroup);
-    setSelectedTokenGroups(newGroups);
+  // 设为默认用户组（放到列表首位）
+  const setDefaultGroup = (groupName) => {
+    const filtered = selectedTokenGroups.filter((g) => g !== groupName);
+    setSelectedTokenGroups([groupName, ...filtered]);
   };
 
   const onPaginationChange = (e, { activePage }) => {
@@ -401,7 +421,21 @@ const TokensTable = () => {
     const res = await API.get(`/api/token/search?keyword=${searchKeyword}`);
     const { success, message, data } = res.data;
     if (success) {
-      setTokens(data);
+      // 与列表加载一致，规范 user_groups 并提取默认组用于显示
+      const tokensWithGroups = (data || []).map((token) => {
+        let groupsArr = [];
+        if (Array.isArray(token.user_groups)) {
+          groupsArr = token.user_groups;
+        } else if (typeof token.user_groups === 'string') {
+          try {
+            const parsed = JSON.parse(token.user_groups);
+            if (Array.isArray(parsed)) groupsArr = parsed;
+          } catch (e) {}
+        }
+        const group = groupsArr.length > 0 ? groupsArr[0] : 'default';
+        return { ...token, group };
+      });
+      setTokens(tokensWithGroups);
       setActivePage(1);
     } else {
       showError(message);
@@ -586,7 +620,7 @@ const TokensTable = () => {
                             <Icon name='list' />
                           </Button>
                         }
-                        content='配置多用户组'
+                        content='配置用户组'
                         position='top center'
                         inverted
                       />
@@ -741,13 +775,13 @@ const TokensTable = () => {
         onClose={() => setShowMultiGroupModal(false)}
         size='small'
       >
-        <Header icon='list' content='配置令牌多用户组' />
+        <Header icon='list' content='配置令牌用户组' />
         <Modal.Content>
           <p>
             令牌: <strong>{selectedToken?.name || selectedToken?.key}</strong>
           </p>
           <p style={{ color: '#666', fontSize: '0.9em', marginBottom: '1em' }}>
-            用户组按优先级顺序排列，优先级高的用户组会优先使用。可拖拽调整顺序。
+            请选择一个默认用户组，其他为非默认用户组。当无法匹配请求中的用户组时，将使用默认用户组。
           </p>
           
           <Form>
@@ -776,39 +810,32 @@ const TokensTable = () => {
             </Form.Field>
             
             <Form.Field>
-              <label>当前用户组列表（按优先级排序）</label>
+              <label>默认与其他用户组</label>
               <div style={{ border: '1px solid #ddd', borderRadius: '4px', padding: '8px', minHeight: '100px' }}>
                 {selectedTokenGroups.length === 0 ? (
                   <div style={{ color: '#999', textAlign: 'center', padding: '20px' }}>
                     请至少添加一个用户组
                   </div>
                 ) : (
-                  selectedTokenGroups.map((group, index) => (
+                  <>
+                    {/* 默认用户组 */}
                     <div
-                      key={`${group}-${index}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '8px',
                         margin: '4px 0',
-                        backgroundColor: '#f8f9fa',
+                        backgroundColor: '#f0fff4',
                         borderRadius: '4px',
-                        border: '1px solid #e9ecef'
+                        border: '1px solid #c6f6d5'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ fontWeight: 'bold', color: '#007bff' }}>
-                          #{index + 1}
-                        </span>
-                        <Label basic color={index === 0 ? 'green' : 'blue'}>
-                          {group}
+                        <Label basic color='green'>
+                          {selectedTokenGroups[0]}
                         </Label>
-                        {index === 0 && (
-                          <Label basic color='green' size='mini'>
-                            最高优先级
-                          </Label>
-                        )}
+                        <Label basic color='green' size='mini'>默认</Label>
                       </div>
                       <div style={{ display: 'flex', gap: '4px' }}>
                         <Button
@@ -816,34 +843,59 @@ const TokensTable = () => {
                           icon
                           basic
                           compact
-                          disabled={index === 0}
-                          onClick={() => moveGroup(index, index - 1)}
-                        >
-                          <Icon name='arrow up' />
-                        </Button>
-                        <Button
-                          size='mini'
-                          icon
-                          basic
-                          compact
-                          disabled={index === selectedTokenGroups.length - 1}
-                          onClick={() => moveGroup(index, index + 1)}
-                        >
-                          <Icon name='arrow down' />
-                        </Button>
-                        <Button
-                          size='mini'
-                          icon
-                          basic
-                          compact
                           color='red'
-                          onClick={() => removeGroupFromToken(group)}
+                          onClick={() => removeGroupFromToken(selectedTokenGroups[0])}
                         >
                           <Icon name='trash' />
                         </Button>
                       </div>
                     </div>
-                  ))
+
+                    {/* 其他用户组 */}
+                    {selectedTokenGroups.slice(1).map((group, index) => (
+                      <div
+                        key={`${group}-${index}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '8px',
+                          margin: '4px 0',
+                          backgroundColor: '#f8f9fa',
+                          borderRadius: '4px',
+                          border: '1px solid #e9ecef'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <Label basic color='blue'>
+                            {group}
+                          </Label>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <Button
+                            size='mini'
+                            icon
+                            basic
+                            compact
+                            color='yellow'
+                            onClick={() => setDefaultGroup(group)}
+                          >
+                            <Icon name='star' /> 设为默认
+                          </Button>
+                          <Button
+                            size='mini'
+                            icon
+                            basic
+                            compact
+                            color='red'
+                            onClick={() => removeGroupFromToken(group)}
+                          >
+                            <Icon name='trash' />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
                 )}
               </div>
             </Form.Field>
@@ -854,8 +906,7 @@ const TokensTable = () => {
                 <ul style={{ margin: 0, paddingLeft: '20px', color: '#2d5a2d' }}>
                   <li>当请求包含用户ID时，系统会解析用户所属的用户组</li>
                   <li>如果解析的用户组在令牌配置的用户组列表中，则使用该用户组</li>
-                  <li>如果解析的用户组不在列表中，则使用优先级最高的用户组（第一个）</li>
-                  <li>如果请求不包含用户ID，则直接使用优先级最高的用户组</li>
+                  <li>否则（未包含或不在列表中），使用默认用户组</li>
                 </ul>
               </div>
             )}
