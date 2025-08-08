@@ -277,11 +277,12 @@ func getExtendedLogsWithConditions(c *gin.Context, conditions map[string]interfa
 		query = query.Where("created_at <= ?", endTime)
 	}
 
-	// 添加其他条件
+	// 添加其他条件（支持模糊匹配）
 	for key, value := range conditions {
 		switch key {
 		case "external_user_id", "user_group":
-			query = query.Where(key+" = ?", value)
+			// 使用 LIKE 进行包含匹配，支持输入部分字符串进行查询
+			query = query.Where(key+" LIKE ?", "%"+value.(string)+"%")
 		}
 	}
 
