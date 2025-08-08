@@ -34,8 +34,17 @@ func RelayTextHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	}
 	meta.IsStream = textRequest.Stream
 
-	// map model name
-	meta.OriginModelName = textRequest.Model
+	// 根据身份解析/智能选择，优先使用上下文中的模型（例如从课件平台解析得到的 preferred model）
+	preferredModel := c.GetString(ctxkey.RequestModel)
+	originalModel := textRequest.Model
+	if preferredModel != "" && preferredModel != originalModel {
+		// 记住原始模型，并将请求模型替换为首选模型
+		meta.OriginModelName = originalModel
+		textRequest.Model = preferredModel
+	} else {
+		meta.OriginModelName = originalModel
+	}
+	// 接着执行渠道层面的模型映射
 	textRequest.Model, _ = getMappedModelName(textRequest.Model, meta.ModelMapping)
 	meta.ActualModelName = textRequest.Model
 	// set system prompt if not empty
