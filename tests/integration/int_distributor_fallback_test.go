@@ -16,7 +16,8 @@ import (
 )
 
 // TestDistributor_GroupFallback 当主组无可用渠道时，应按 user_groups 顺序回退到后续组
-func TestDistributor_GroupFallback(t *testing.T) {
+// 由于取消跨用户组回退策略，此用例调整为：当主组无可用渠道时，应返回503
+func TestDistributor_GroupNoFallback_Return503(t *testing.T) {
 	// 复用公共集成测试初始化工具（与其他API集成测试保持一致）
 	_, db := setupIntegrationTest()
 	cleanupTestData(db)
@@ -28,7 +29,7 @@ func TestDistributor_GroupFallback(t *testing.T) {
 	_ = token.SetUserGroups([]string{"beijing_math_group", "default"})
 	_ = token.Update()
 
-	// 在 default 组创建支持 qwen-max 的渠道；在 beijing_math_group 不创建对应渠道
+	// 仅在 default 组创建支持 qwen-max 的渠道；在 beijing_math_group 不创建对应渠道
 	ch := &model.Channel{
 		Type:   1, // OpenAI 兼容适配器
 		Key:    "sk-test",
@@ -70,15 +71,13 @@ func TestDistributor_GroupFallback(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	// 断言：应成功且选中 default 组
-	assert.Equal(t, http.StatusOK, w.Code)
-	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.Equal(t, "default", resp["selected_group"])
+	// 断言：不可跨组回退，应返回服务不可用
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 // 三组用户组（A、B、C）回滚验证：A 组有可用渠道 → 直接使用 A
-func TestDistributor_GroupFallback_ABC_UseA(t *testing.T) {
+// A/B/C 三组：仅 A 组有渠道，应命中 A
+func TestDistributor_Group_ABC_UseA(t *testing.T) {
 	_, db := setupIntegrationTest()
 	cleanupTestData(db)
 
@@ -120,7 +119,8 @@ func TestDistributor_GroupFallback_ABC_UseA(t *testing.T) {
 }
 
 // 三组用户组（A、B、C）回滚验证：仅 B 组有可用渠道 → 回滚到 B
-func TestDistributor_GroupFallback_ABC_UseB(t *testing.T) {
+// A/B/C 三组：A无、仅B有渠道；由于不允许回退，应返回503
+func TestDistributor_Group_ABC_OnlyB_NoFallback(t *testing.T) {
 	_, db := setupIntegrationTest()
 	cleanupTestData(db)
 
@@ -151,14 +151,12 @@ func TestDistributor_GroupFallback_ABC_UseB(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.Equal(t, "group_b", resp["selected_group"]) // 回滚到 B
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 // 三组用户组（A、B、C）回滚验证：仅 C 组有可用渠道 → 最终回滚到 C
-func TestDistributor_GroupFallback_ABC_UseC(t *testing.T) {
+// A/B/C 三组：A、B无，只有C有；由于不允许回退，应返回503
+func TestDistributor_Group_ABC_OnlyC_NoFallback(t *testing.T) {
 	_, db := setupIntegrationTest()
 	cleanupTestData(db)
 
@@ -188,8 +186,5 @@ func TestDistributor_GroupFallback_ABC_UseC(t *testing.T) {
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	var resp map[string]interface{}
-	_ = json.Unmarshal(w.Body.Bytes(), &resp)
-	assert.Equal(t, "group_c", resp["selected_group"]) // 最终回滚到 C
+	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
