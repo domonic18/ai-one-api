@@ -29,9 +29,10 @@ func Distribute() func(c *gin.Context) {
 		// 检查是否已经通过身份解析设置了用户组
 		identityGroup, hasIdentityGroup := c.Get(ctxkey.Group)
 
+		var token *model.Token
 		if tokenId > 0 {
 			// 获取令牌信息
-			token, err := model.GetTokenById(tokenId)
+			t, err := model.GetTokenById(tokenId)
 			if err != nil {
 				logger.Warnf(ctx, "获取令牌信息失败: tokenId=%d, error=%v", tokenId, err)
 				// 回退到原有逻辑
@@ -41,6 +42,7 @@ func Distribute() func(c *gin.Context) {
 					userGroup, _ = model.CacheGetUserGroup(userId)
 				}
 			} else {
+				token = t
 				// 根据身份解析结果选择合适的用户组
 				if hasIdentityGroup && identityGroup != "" {
 					resolvedGroup := identityGroup.(string)
@@ -66,7 +68,34 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 
-		c.Set(ctxkey.Group, userGroup)
+		// 构造候选用户组列表：
+		// - 若存在令牌：按 token.user_groups 顺序尝试；如果有身份解析结果，则将匹配到的组置于首位，其余按原顺序排在后面
+		// - 若不存在令牌：仅尝试当前 userGroup
+		var groupsToTry []string
+		if token != nil {
+			all := token.GetUserGroups()
+			if hasIdentityGroup && identityGroup != "" {
+				resolvedGroup := identityGroup.(string)
+				primary := token.SelectGroupByUserGroup(resolvedGroup)
+				// 去重并保序：primary 优先，然后追加其余
+				seen := map[string]bool{}
+				if primary != "" {
+					groupsToTry = append(groupsToTry, primary)
+					seen[primary] = true
+				}
+				for _, g := range all {
+					if !seen[g] {
+						groupsToTry = append(groupsToTry, g)
+						seen[g] = true
+					}
+				}
+			} else {
+				groupsToTry = append(groupsToTry, all...)
+			}
+		} else {
+			groupsToTry = []string{userGroup}
+		}
+
 		var requestModel string
 		var channel *model.Channel
 		channelId, ok := c.Get(ctxkey.SpecificChannelId)
@@ -88,17 +117,25 @@ func Distribute() func(c *gin.Context) {
 		} else {
 			requestModel = c.GetString(ctxkey.RequestModel)
 			var err error
-			channel, err = model.CacheGetRandomSatisfiedChannel(userGroup, requestModel, false)
-			if err != nil {
-				message := fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道", userGroup, requestModel)
-				if channel != nil {
-					logger.SysError(fmt.Sprintf("渠道不存在：%d", channel.Id))
-					message = "数据库一致性已被破坏，请联系管理员"
+			// 按候选组顺序尝试获取可用渠道
+			for _, grp := range groupsToTry {
+				channel, err = model.CacheGetRandomSatisfiedChannel(grp, requestModel, false)
+				if err == nil && channel != nil {
+					userGroup = grp
+					break
 				}
+				logger.Debugf(ctx, "分组回退: 组=%s 对于模型 %s 无可用渠道，继续尝试下一组", grp, requestModel)
+			}
+			if channel == nil {
+				// 所有分组均无可用渠道
+				message := fmt.Sprintf("当前令牌可用分组 %v 下对于模型 %s 均无可用渠道", groupsToTry, requestModel)
 				abortWithMessage(c, http.StatusServiceUnavailable, message)
 				return
 			}
 		}
+
+		// 记录最终选择的组
+		c.Set(ctxkey.Group, userGroup)
 		logger.Debugf(ctx, "user id %d, user group: %s, request model: %s, using channel #%d", userId, userGroup, requestModel, channel.Id)
 		SetupContextForSelectedChannel(c, channel, requestModel)
 		c.Next()
