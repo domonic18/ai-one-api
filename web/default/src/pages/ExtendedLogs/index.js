@@ -57,6 +57,8 @@ const ExtendedLogs = () => {
   const [timeRange, setTimeRange] = useState('7d'); // 默认7天
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [customStartTime, setCustomStartTime] = useState('00:00');
+  const [customEndTime, setCustomEndTime] = useState('23:59');
 
   // 时间范围选项
   const timeRangeOptions = [
@@ -87,8 +89,8 @@ const ExtendedLogs = () => {
         break;
       case 'custom':
         if (customStartDate && customEndDate) {
-          const start = new Date(customStartDate);
-          const end = new Date(customEndDate);
+          const start = new Date(`${customStartDate}T${customStartTime}`);
+          const end = new Date(`${customEndDate}T${customEndTime}`);
           setFilters(prev => ({
             ...prev,
             start_timestamp: Math.floor(start.getTime() / 1000).toString(),
@@ -106,7 +108,7 @@ const ExtendedLogs = () => {
       start_timestamp: Math.floor(startDate.getTime() / 1000).toString(),
       end_timestamp: Math.floor(now.getTime() / 1000).toString(),
     }));
-  }, [timeRange, customStartDate, customEndDate]);
+  }, [timeRange, customStartDate, customEndDate, customStartTime, customEndTime]);
 
   // 时间范围变化时更新时间戳
   useEffect(() => {
@@ -197,6 +199,8 @@ const ExtendedLogs = () => {
     setTimeRange('7d');
     setCustomStartDate('');
     setCustomEndDate('');
+    setCustomStartTime('00:00');
+    setCustomEndTime('23:59');
   };
 
   // 处理排序
@@ -401,9 +405,9 @@ const ExtendedLogs = () => {
               />
             </Form.Field>
             <Form.Field>
-              <label>外部用户ID</label>
+              <label>用户ID(user_id)</label>
               <Input
-                placeholder="输入教师ID"
+                placeholder="输入用户ID"
                 value={filters.external_user_id}
                 onChange={(e) => handleFilterChange('external_user_id', e.target.value)}
                 onKeyDown={(e) => {
@@ -450,11 +454,27 @@ const ExtendedLogs = () => {
                 />
               </Form.Field>
               <Form.Field>
+                <label>开始时间</label>
+                <Input
+                  type="time"
+                  value={customStartTime}
+                  onChange={(e) => setCustomStartTime(e.target.value)}
+                />
+              </Form.Field>
+              <Form.Field>
                 <label>结束日期</label>
                 <Input
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
+                />
+              </Form.Field>
+              <Form.Field>
+                <label>结束时间</label>
+                <Input
+                  type="time"
+                  value={customEndTime}
+                  onChange={(e) => setCustomEndTime(e.target.value)}
                 />
               </Form.Field>
             </Form.Group>
@@ -486,7 +506,7 @@ const ExtendedLogs = () => {
                     <Table.Cell>{selectedLog.log_id}</Table.Cell>
                   </Table.Row>
                   <Table.Row>
-                    <Table.Cell><strong>外部用户ID</strong></Table.Cell>
+                    <Table.Cell><strong>用户ID(user_id)</strong></Table.Cell>
                     <Table.Cell>{selectedLog.external_user_id}</Table.Cell>
                   </Table.Row>
                   <Table.Row>
@@ -619,7 +639,7 @@ const ExtendedLogs = () => {
                   onClick={() => handleSort('external_user_id')}
                   style={{ cursor: 'pointer', width: '15%' }}
                 >
-                  外部用户ID {renderSortIcon('external_user_id')}
+                  用户ID(user_id) {renderSortIcon('external_user_id')}
                 </Table.HeaderCell>
                 <Table.HeaderCell 
                   sorted={sortConfig.key === 'user_group' ? sortConfig.direction : null}
