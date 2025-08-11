@@ -72,10 +72,16 @@ docker-compose up -d
 - `mock server`：
   - 前端页面提供 `/oneapi/webhook/*` 的调试入口，自动签名并转发；配置 `oneapi_base_url` 与 `oneapi_webhook_secret`
 
-## 7. 其他文档链接
+## 其他文档链接
 - 需求文档：[需求文档](./docs/prd/需求文档.md)
 - 实现方案：[实现方案](./docs/arch/实现方案v3.0版本.md)
 - 开发计划：[开发计划](./docs/plan/开发计划v3.0版本.md)
 - 测试用例说明：[测试用例说明](./tests/README.md)
 - `mock server` 使用：[mock server 使用](./scripts/mock-server/README.md)
 
+## 其他
+> [!WARNING]
+> 使用 root 用户初次登录系统后，务必修改默认密码 `123456`！
+> 
+- 本项目为开源项目，使用者必须在遵循 OpenAI 的[使用条款](https://openai.com/policies/terms-of-use)以及**法律法规**的情况下使用，不得用于非法用途。
+- 根据[《生成式人工智能服务管理暂行办法》](http://www.cac.gov.cn/2023-07/13/c_1690898327029107.htm)的要求，请勿对中国地区公众提供一切未经备案的生成式人工智能服务。
