@@ -147,5 +147,13 @@ func SetApiRouter(router *gin.Engine) {
 			coursewareRoute.POST("/test", controller.TestCoursewareConnection)
 		}
 
+		// 课件平台 Webhook（无需登录，但需签名验证）
+		webhookRoute := apiRouter.Group("/courseware/webhook")
+		{
+			webhookRoute.POST("/user", controller.CoursewareWebhookUpsertUser)
+			webhookRoute.POST("/users", controller.CoursewareWebhookBatchUpsertUsers)
+			webhookRoute.DELETE("/user/:teacher_id", controller.CoursewareWebhookDeleteUser)
+		}
+
 	}
 }
