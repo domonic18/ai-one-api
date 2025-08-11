@@ -138,6 +138,9 @@ func UpdateConfig(c *gin.Context) {
 	config.API.ResponseDelay = webConfig.API.ResponseDelay
 	config.API.ErrorRate = webConfig.API.ErrorRate
 	config.API.APIKey = webConfig.API.APIKey
+	// 新增：保存 OneAPI Webhook 配置
+	config.API.OneAPIBaseURL = webConfig.API.OneAPIBaseURL
+	config.API.OneAPIWebhookSecret = webConfig.API.OneAPIWebhookSecret
 
 	memoryStorage.SetConfig(config)
 

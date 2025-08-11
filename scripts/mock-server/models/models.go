@@ -60,9 +60,11 @@ type ServerInfo struct {
 
 // APIInfo API信息结构体
 type APIInfo struct {
-	ResponseDelay string  `json:"response_delay"`
-	ErrorRate     float64 `json:"error_rate"`
-	APIKey        string  `json:"api_key"`
+	ResponseDelay       string  `json:"response_delay"`
+	ErrorRate           float64 `json:"error_rate"`
+	APIKey              string  `json:"api_key"`
+	OneAPIBaseURL       string  `json:"oneapi_base_url"`
+	OneAPIWebhookSecret string  `json:"oneapi_webhook_secret"`
 }
 
 // WebUser 用于Web界面的用户结构体

@@ -6,7 +6,9 @@
   "api": {
     "response_delay": "0ms",
     "error_rate": 0,
-    "api_key": "mock_api_key_123"
+    "api_key": "mock_api_key_123",
+    "oneapi_base_url": "http://192.168.6.210:3000",
+    "oneapi_webhook_secret": "dev_webhook_secret"
   },
-  "default_users": []
+  "default_users": null
 }

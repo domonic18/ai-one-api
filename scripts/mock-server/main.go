@@ -91,6 +91,14 @@ func setupRoutes(r *gin.Engine) {
 		api.POST("/teachers/batch", handlers.BatchGetTeachers)
 	}
 
+	// OneAPI Webhook 转发路由（无需本服务的API Key，依赖与OneAPI的签名校验）
+	webhook := r.Group("/oneapi/webhook")
+	{
+		webhook.POST("/user", handlers.WebhookUpsertUser)
+		webhook.POST("/users", handlers.WebhookBatchUpsertUsers)
+		webhook.DELETE("/user/:teacher_id", handlers.WebhookDeleteUser)
+	}
+
 	// 添加CORS中间件
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")

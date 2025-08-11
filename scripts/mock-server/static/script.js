@@ -173,6 +173,8 @@ async function loadConfig() {
         document.getElementById('apiKey').value = config.api?.api_key || 'mock_api_key_123';
         document.getElementById('responseDelay').value = config.api?.response_delay || '0ms';
         document.getElementById('errorRate').value = config.api?.error_rate || 0;
+        document.getElementById('oneapiBaseUrl').value = config.api?.oneapi_base_url || '';
+        document.getElementById('oneapiWebhookSecret').value = config.api?.oneapi_webhook_secret || '';
     } catch (error) {
         showMessage('加载配置失败: ' + error.message, 'error');
     }
@@ -191,7 +193,9 @@ document.getElementById('configForm').addEventListener('submit', async function(
         api: {
             api_key: formData.get('apiKey'),
             response_delay: formData.get('responseDelay'),
-            error_rate: parseFloat(formData.get('errorRate'))
+            error_rate: parseFloat(formData.get('errorRate')),
+            oneapi_base_url: formData.get('oneapiBaseUrl'),
+            oneapi_webhook_secret: formData.get('oneapiWebhookSecret')
         }
     };
     
@@ -238,6 +242,70 @@ async function resetToDefault() {
         }
     } catch (error) {
         showMessage('重置失败: ' + error.message, 'error');
+    }
+}
+
+// Webhook: 单用户 upsert
+window.webhookUpsert = async function () {
+    const payload = {
+        teacher_id: document.getElementById('whTeacherId').value,
+        teacher_name: document.getElementById('whTeacherName').value,
+        group_name: document.getElementById('whGroupName').value,
+        preferred_model: document.getElementById('whPreferredModel').value
+    };
+    const resEl = document.getElementById('whResult1');
+    try {
+        const resp = await fetch('/oneapi/webhook/user', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const text = await resp.text();
+        resEl.textContent = `status=${resp.status} ${text}`;
+        resEl.style.color = resp.ok ? '#27ae60' : '#e74c3c';
+    } catch (e) {
+        resEl.textContent = e.message;
+        resEl.style.color = '#e74c3c';
+    }
+}
+
+// Webhook: 批量 upsert
+window.webhookBatch = async function () {
+    const ids = (document.getElementById('whBatchIds').value || '').split(',').map(s => s.trim()).filter(Boolean);
+    const payload = { users: ids.map(id => ({ teacher_id: id })) };
+    const resEl = document.getElementById('whResult2');
+    try {
+        const resp = await fetch('/oneapi/webhook/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const text = await resp.text();
+        resEl.textContent = `status=${resp.status} ${text}`;
+        resEl.style.color = resp.ok ? '#27ae60' : '#e74c3c';
+    } catch (e) {
+        resEl.textContent = e.message;
+        resEl.style.color = '#e74c3c';
+    }
+}
+
+// Webhook: 删除缓存
+window.webhookDelete = async function () {
+    const id = document.getElementById('whDeleteId').value;
+    const resEl = document.getElementById('whResult3');
+    if (!id) {
+        resEl.textContent = 'teacher_id 不能为空';
+        resEl.style.color = '#e74c3c';
+        return;
+    }
+    try {
+        const resp = await fetch(`/oneapi/webhook/user/${encodeURIComponent(id)}`, { method: 'DELETE' });
+        const text = await resp.text();
+        resEl.textContent = `status=${resp.status} ${text}`;
+        resEl.style.color = resp.ok ? '#27ae60' : '#e74c3c';
+    } catch (e) {
+        resEl.textContent = e.message;
+        resEl.style.color = '#e74c3c';
     }
 }
 
