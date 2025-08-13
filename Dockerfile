@@ -37,7 +37,9 @@ ENV GOPROXY=https://goproxy.cn,direct \
     CGO_ENABLED=1 \
     GOOS=linux
 
-RUN apk add --no-cache \
+# 使用腾讯云 Alpine 源以加速 apk 包安装
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.cloud.tencent.com/g' /etc/apk/repositories && \
+    apk add --no-cache \
     gcc \
     musl-dev \
     sqlite-dev \
@@ -55,7 +57,9 @@ RUN go build -trimpath -ldflags "-s -w -X 'github.com/songquanpeng/one-api/commo
 
 FROM alpine:latest
 
-RUN apk add --no-cache ca-certificates tzdata
+# 使用腾讯云 Alpine 源以加速 apk 包安装
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.cloud.tencent.com/g' /etc/apk/repositories && \
+    apk add --no-cache ca-certificates tzdata
 
 COPY --from=builder2 /build/one-api /
 
