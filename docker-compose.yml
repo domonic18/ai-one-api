@@ -12,8 +12,9 @@ services:
       - ./data/oneapi:/data
       - ./logs:/app/logs
     environment:
-      - SQL_DSN=oneapi:123456@tcp(db:3306)/oneapi?charset=utf8mb4&parseTime=True&loc=Local  # 修改此行，或注释掉以使用 SQLite 作为数据库
-      - REDIS_CONN_STRING=redis://redis
+      # - SQL_DSN=oneapi:123456@tcp(oneapi-mysql:3306)/oneapi?charset=utf8mb4&parseTime=True&loc=Local  # 修改此行，或注释掉以使用 SQLite 作为数据库
+      - SQL_DSN=liuchang:{password}@tcp(10.3.0.15:3306)/oneapi?charset=utf8mb4&parseTime=True&loc=Local
+      - REDIS_CONN_STRING=redis://oneapi-redis:6379/0
       - SESSION_SECRET=random_string  # 修改为随机字符串
       - TZ=Asia/Shanghai
 #      - NODE_TYPE=slave  # 多机部署时从节点取消注释该行
@@ -28,7 +29,10 @@ services:
       - COURSEWARE_PRELOAD_BATCH_SIZE=100                          # 预加载批次大小（可选）
       - COURSEWARE_DEFAULT_GROUP=default                           # 默认用户组（可选）
       - COURSEWARE_WEBHOOK_SECRET=dev_webhook_secret               # 课件平台webhook 密钥（可选）
-      
+    networks:
+      - backend
+      - docker_default          # 设置与dify一个网络，从而实现dify的nginx可以路由转发请求至oneapi
+
     depends_on:
       - redis
       - db
@@ -40,22 +44,29 @@ services:
 
   redis:
     image: "${REGISTRY:-docker.io}/redis:latest"
-    container_name: redis
-    ports:
-      - "6379:6379"
+    container_name: oneapi-redis
     restart: always
+    networks:
+      - backend
 
-  db:
-    image: "${REGISTRY:-docker.io}/mysql:8.2.0"
-    restart: always
-    container_name: mysql
-    volumes:
-      - ./data/mysql:/var/lib/mysql  # 挂载目录，持久化存储
-    ports:
-      - '3306:3306'
-    environment:
-      TZ: Asia/Shanghai   # 设置时区
-      MYSQL_ROOT_PASSWORD: 'OneAPI@justsong' # 设置 root 用户的密码
-      MYSQL_USER: oneapi   # 创建专用用户
-      MYSQL_PASSWORD: '123456'    # 设置专用用户密码
-      MYSQL_DATABASE: oneapi   # 自动创建数据库
+  # 由于oneapi直接使用外部mysql，所以这里不启动mysql容器
+  # db:
+  #   image: "${REGISTRY:-docker.io}/mysql:8.2.0"
+  #   restart: always
+  #   container_name: oneapi-mysql
+  #   volumes:
+  #     - ./data/mysql:/var/lib/mysql  # 挂载目录，持久化存储
+  #   environment:
+  #     TZ: Asia/Shanghai   # 设置时区
+  #     MYSQL_ROOT_PASSWORD: 'OneAPI@justsong' # 设置 root 用户的密码
+  #     MYSQL_USER: oneapi   # 创建专用用户
+  #     MYSQL_PASSWORD: '123456'    # 设置专用用户密码
+  #     MYSQL_DATABASE: oneapi   # 自动创建数据库
+  #   networks:
+  #     - backend
+
+networks:
+  backend:
+    internal: true  # 仅用于 one-api、db、redis 之间的后端通信
+  docker_default:
+    external: true  # 声明这是一个外部网络
