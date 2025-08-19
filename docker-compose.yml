@@ -21,7 +21,7 @@ services:
 #      - FRONTEND_BASE_URL=https://openai.justsong.cn  # 多机部署时从节点取消注释该行
       - SYNC_FREQUENCY=60  # 需要定期从数据库加载数据时取消注释该行
       - COURSEWARE_ENABLED=true                                    # 启用课件平台集成
-      - COURSEWARE_PLATFORM_BASE_URL=https://courseware-api.bj33smarter.com   # 课件平台API地址
+      - COURSEWARE_PLATFORM_BASE_URL=https://courseware-api.bj33smarter.com/course-api   # 课件平台API地址
       - COURSEWARE_PLATFORM_API_KEY=courseware-api-key              # 课件平台API密钥
       - COURSEWARE_PLATFORM_TIMEOUT=5                              # API超时时间（秒）
       - COURSEWARE_CACHE_TTL=10m                                   # 缓存时间（可选）
