@@ -386,9 +386,7 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 // DirectHandler handles native Anthropic API responses without conversion to OpenAI format
 func DirectHandler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model.ErrorWithStatusCode, *model.Usage) {
 	ctx := c.Request.Context()
-	logger.Infof(ctx, "=== DirectHandler Start ===")
-	logger.Infof(ctx, "Response status: %d", resp.StatusCode)
-	logger.Infof(ctx, "Response headers: %+v", resp.Header)
+	logger.Debugf(ctx, "DirectHandler - Response status: %d", resp.StatusCode)
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -401,7 +399,7 @@ func DirectHandler(c *gin.Context, resp *http.Response, promptTokens int, modelN
 		return openai.ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
 	}
 
-	logger.Infof(ctx, "Raw response body: %s", string(responseBody))
+	logger.Debugf(ctx, "Raw response body: %s", string(responseBody))
 
 	var claudeResponse Response
 	err = json.Unmarshal(responseBody, &claudeResponse)
@@ -421,7 +419,7 @@ func DirectHandler(c *gin.Context, resp *http.Response, promptTokens int, modelN
 		return nil, usage
 	}
 
-	logger.Infof(ctx, "Parsed response - ID: %s, Model: %s, Usage: %+v",
+	logger.Debugf(ctx, "Parsed response - ID: %s, Model: %s, Usage: %+v",
 		claudeResponse.Id, claudeResponse.Model, claudeResponse.Usage)
 
 	if claudeResponse.Error.Type != "" {
@@ -444,7 +442,7 @@ func DirectHandler(c *gin.Context, resp *http.Response, promptTokens int, modelN
 		TotalTokens:      claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens,
 	}
 
-	logger.Infof(ctx, "Usage calculated: %+v", usage)
+	logger.Debugf(ctx, "Usage calculated: %+v", usage)
 
 	// Write the original Anthropic response directly
 	c.Writer.Header().Set("Content-Type", "application/json")
@@ -455,8 +453,7 @@ func DirectHandler(c *gin.Context, resp *http.Response, promptTokens int, modelN
 		return openai.ErrorWrapper(err, "write_response_failed", http.StatusInternalServerError), nil
 	}
 
-	logger.Infof(ctx, "Response written successfully")
-	logger.Infof(ctx, "=== DirectHandler End ===")
+	logger.Debugf(ctx, "Response written successfully")
 	return nil, &usage
 }
 

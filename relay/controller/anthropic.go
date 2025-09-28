@@ -28,10 +28,7 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	ctx := c.Request.Context()
 	meta := meta.GetByContext(c)
 
-	logger.Infof(ctx, "=== Anthropic Request Start ===")
-	logger.Infof(ctx, "Request URL: %s", c.Request.URL.String())
-	logger.Infof(ctx, "Request Method: %s", c.Request.Method)
-	logger.Infof(ctx, "Request Headers: %+v", c.Request.Header)
+	logger.Infof(ctx, "Anthropic request received - URL: %s", c.Request.URL.String())
 
 	// get & validate anthropic request
 	anthropicRequest, err := getAndValidateAnthropicRequest(c)
@@ -39,7 +36,7 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 		logger.Errorf(ctx, "getAndValidateAnthropicRequest failed: %s", err.Error())
 		return openai.ErrorWrapper(err, "invalid_anthropic_request", http.StatusBadRequest)
 	}
-	logger.Infof(ctx, "Parsed anthropic request - Model: %s, Stream: %v, Messages: %d",
+	logger.Debugf(ctx, "Parsed anthropic request - Model: %s, Stream: %v, Messages: %d",
 		anthropicRequest.Model, anthropicRequest.Stream, len(anthropicRequest.Messages))
 	meta.IsStream = anthropicRequest.Stream
 
@@ -65,14 +62,14 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 		return bizErr
 	}
 
-	logger.Infof(ctx, "Meta info - APIType: %d, ChannelType: %d, BaseURL: %s", meta.APIType, meta.ChannelType, meta.BaseURL)
+	logger.Debugf(ctx, "Meta info - APIType: %d, ChannelType: %d, BaseURL: %s", meta.APIType, meta.ChannelType, meta.BaseURL)
 
 	adaptor := relay.GetAdaptor(meta.APIType)
 	if adaptor == nil {
 		logger.Errorf(ctx, "Failed to get adaptor for API type: %d", meta.APIType)
 		return openai.ErrorWrapper(fmt.Errorf("invalid api type: %d", meta.APIType), "invalid_api_type", http.StatusBadRequest)
 	}
-	logger.Infof(ctx, "Using adaptor: %s", adaptor.GetChannelName())
+	logger.Debugf(ctx, "Using adaptor: %s", adaptor.GetChannelName())
 	adaptor.Init(meta)
 
 	// get request body - for anthropic passthrough, we directly use the request body
@@ -82,13 +79,12 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	}
 
 	// do request
-	logger.Infof(ctx, "Sending request to upstream...")
 	resp, err := adaptor.DoRequest(c, meta, requestBody)
 	if err != nil {
 		logger.Errorf(ctx, "DoRequest failed: %s", err.Error())
 		return openai.ErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
-	logger.Infof(ctx, "Received response - Status: %d, Headers: %+v", resp.StatusCode, resp.Header)
+	logger.Debugf(ctx, "Received response - Status: %d", resp.StatusCode)
 
 	if isErrorHappened(meta, resp) {
 		logger.Errorf(ctx, "Error detected in response")
@@ -97,7 +93,6 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	}
 
 	// do response - for anthropic native requests, we need to handle the response directly
-	logger.Infof(ctx, "Processing anthropic response...")
 	usage, respErr := handleAnthropicResponse(c, resp, meta)
 	if respErr != nil {
 		logger.Errorf(ctx, "respErr is not nil: %+v", respErr)
@@ -105,8 +100,7 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 		return respErr
 	}
 
-	logger.Infof(ctx, "Response processed successfully - Usage: %+v", usage)
-	logger.Infof(ctx, "=== Anthropic Request End ===")
+	logger.Infof(ctx, "Anthropic request completed - Usage: %+v", usage)
 
 	// post-consume quota - for anthropic, we create a placeholder GeneralOpenAIRequest
 	placeholderRequest := &model.GeneralOpenAIRequest{
