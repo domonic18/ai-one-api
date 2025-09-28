@@ -142,6 +142,12 @@ func getAnthropicRequestBody(c *gin.Context, anthropicRequest *anthropic.Request
 	return bytes.NewBuffer(jsonData), nil
 }
 
+const (
+	// CHARS_PER_TOKEN represents the rough character-to-token ratio for Anthropic models
+	// This is a conservative estimate: approximately 1 token per 4 characters
+	CHARS_PER_TOKEN = 4
+)
+
 func estimateAnthropicTokens(request *anthropic.Request) int {
 	// Simple token estimation for Anthropic requests
 	// This is a rough estimation, actual implementation might need more sophisticated logic
@@ -150,14 +156,14 @@ func estimateAnthropicTokens(request *anthropic.Request) int {
 	// Count tokens in system prompt
 	if !request.System.IsEmpty() {
 		systemText := request.System.String()
-		totalTokens += len(systemText) / 4 // rough estimate: 1 token per 4 characters
+		totalTokens += len(systemText) / CHARS_PER_TOKEN // rough estimate: 1 token per 4 characters
 	}
 
 	// Count tokens in messages
 	for _, message := range request.Messages {
 		for _, content := range message.Content {
 			if content.Type == "text" {
-				totalTokens += len(content.Text) / 4
+				totalTokens += len(content.Text) / CHARS_PER_TOKEN
 			}
 		}
 	}

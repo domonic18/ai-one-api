@@ -14,6 +14,13 @@ import (
 	"github.com/songquanpeng/one-api/relay/relaymode"
 )
 
+const (
+	// NativeAnthropicEndpoint is the endpoint for native Anthropic API
+	NativeAnthropicEndpoint = "/v1/messages"
+	// ThirdPartyAnthropicEndpoint is the endpoint for third-party providers supporting Anthropic protocol
+	ThirdPartyAnthropicEndpoint = "/anthropic/v1/messages"
+)
+
 type Adaptor struct {
 }
 
@@ -24,13 +31,13 @@ func (a *Adaptor) Init(meta *meta.Meta) {
 func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
 	// For native Anthropic API
 	if strings.Contains(meta.BaseURL, "api.anthropic.com") {
-		return fmt.Sprintf("%s/v1/messages", meta.BaseURL), nil
+		return fmt.Sprintf("%s%s", meta.BaseURL, NativeAnthropicEndpoint), nil
 	}
 
 	// For third-party providers supporting Anthropic protocol (like DeepSeek)
 	// They typically expose the endpoint at /anthropic/v1/messages
 	baseURL := strings.TrimSuffix(meta.BaseURL, "/")
-	return fmt.Sprintf("%s/anthropic/v1/messages", baseURL), nil
+	return fmt.Sprintf("%s%s", baseURL, ThirdPartyAnthropicEndpoint), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Request, meta *meta.Meta) error {

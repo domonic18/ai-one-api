@@ -93,9 +93,15 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *Request {
 		if message.Role == "system" && claudeRequest.System.IsEmpty() {
 			// Create a SystemPrompt from the string content
 			systemPrompt := SystemPrompt{}
-			systemData := []byte(`"` + message.StringContent() + `"`) // Wrap in JSON string quotes
-			_ = systemPrompt.UnmarshalJSON(systemData)
-			claudeRequest.System = systemPrompt
+			systemData, err := json.Marshal(message.StringContent()) // Safely escape string for JSON
+			if err != nil {
+				logger.SysError(fmt.Sprintf("Failed to marshal system prompt: %v", err))
+			} else {
+				if err := systemPrompt.UnmarshalJSON(systemData); err != nil {
+					logger.SysError(fmt.Sprintf("Failed to unmarshal system prompt: %v", err))
+				}
+				claudeRequest.System = systemPrompt
+			}
 			continue
 		}
 		claudeMessage := Message{
