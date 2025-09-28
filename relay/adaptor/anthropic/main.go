@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/songquanpeng/one-api/common/render"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/songquanpeng/one-api/common/render"
 
 	"github.com/gin-gonic/gin"
 	"github.com/songquanpeng/one-api/common"
@@ -89,8 +90,12 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *Request {
 		claudeRequest.Model = "claude-2.1"
 	}
 	for _, message := range textRequest.Messages {
-		if message.Role == "system" && claudeRequest.System == "" {
-			claudeRequest.System = message.StringContent()
+		if message.Role == "system" && claudeRequest.System.IsEmpty() {
+			// Create a SystemPrompt from the string content
+			systemPrompt := SystemPrompt{}
+			systemData := []byte(`"` + message.StringContent() + `"`) // Wrap in JSON string quotes
+			_ = systemPrompt.UnmarshalJSON(systemData)
+			claudeRequest.System = systemPrompt
 			continue
 		}
 		claudeMessage := Message{
@@ -375,5 +380,133 @@ func Handler(c *gin.Context, resp *http.Response, promptTokens int, modelName st
 	c.Writer.Header().Set("Content-Type", "application/json")
 	c.Writer.WriteHeader(resp.StatusCode)
 	_, err = c.Writer.Write(jsonResponse)
+	return nil, &usage
+}
+
+// DirectHandler handles native Anthropic API responses without conversion to OpenAI format
+func DirectHandler(c *gin.Context, resp *http.Response, promptTokens int, modelName string) (*model.ErrorWithStatusCode, *model.Usage) {
+	ctx := c.Request.Context()
+	logger.Infof(ctx, "=== DirectHandler Start ===")
+	logger.Infof(ctx, "Response status: %d", resp.StatusCode)
+	logger.Infof(ctx, "Response headers: %+v", resp.Header)
+
+	responseBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logger.Errorf(ctx, "Failed to read response body: %s", err.Error())
+		return openai.ErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
+	}
+	err = resp.Body.Close()
+	if err != nil {
+		logger.Errorf(ctx, "Failed to close response body: %s", err.Error())
+		return openai.ErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError), nil
+	}
+
+	logger.Infof(ctx, "Raw response body: %s", string(responseBody))
+
+	var claudeResponse Response
+	err = json.Unmarshal(responseBody, &claudeResponse)
+	if err != nil {
+		logger.Errorf(ctx, "Failed to unmarshal response: %s", err.Error())
+		// If we can't parse as Anthropic response, maybe it's an error response
+		// Let's try to write it directly and see what happens
+		c.Writer.Header().Set("Content-Type", "application/json")
+		c.Writer.WriteHeader(resp.StatusCode)
+		_, writeErr := c.Writer.Write(responseBody)
+		if writeErr != nil {
+			logger.Errorf(ctx, "Failed to write raw response: %s", writeErr.Error())
+			return openai.ErrorWrapper(writeErr, "write_response_failed", http.StatusInternalServerError), nil
+		}
+		// Return a minimal usage for tracking
+		usage := &model.Usage{PromptTokens: promptTokens, CompletionTokens: 0, TotalTokens: promptTokens}
+		return nil, usage
+	}
+
+	logger.Infof(ctx, "Parsed response - ID: %s, Model: %s, Usage: %+v",
+		claudeResponse.Id, claudeResponse.Model, claudeResponse.Usage)
+
+	if claudeResponse.Error.Type != "" {
+		logger.Errorf(ctx, "Anthropic API error: %s - %s", claudeResponse.Error.Type, claudeResponse.Error.Message)
+		return &model.ErrorWithStatusCode{
+			Error: model.Error{
+				Message: claudeResponse.Error.Message,
+				Type:    claudeResponse.Error.Type,
+				Param:   "",
+				Code:    claudeResponse.Error.Type,
+			},
+			StatusCode: resp.StatusCode,
+		}, nil
+	}
+
+	// For direct mode, return the response as-is without conversion
+	usage := model.Usage{
+		PromptTokens:     claudeResponse.Usage.InputTokens,
+		CompletionTokens: claudeResponse.Usage.OutputTokens,
+		TotalTokens:      claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens,
+	}
+
+	logger.Infof(ctx, "Usage calculated: %+v", usage)
+
+	// Write the original Anthropic response directly
+	c.Writer.Header().Set("Content-Type", "application/json")
+	c.Writer.WriteHeader(resp.StatusCode)
+	_, err = c.Writer.Write(responseBody)
+	if err != nil {
+		logger.Errorf(ctx, "Failed to write response: %s", err.Error())
+		return openai.ErrorWrapper(err, "write_response_failed", http.StatusInternalServerError), nil
+	}
+
+	logger.Infof(ctx, "Response written successfully")
+	logger.Infof(ctx, "=== DirectHandler End ===")
+	return nil, &usage
+}
+
+// DirectStreamHandler handles native Anthropic API streaming responses without conversion
+func DirectStreamHandler(c *gin.Context, resp *http.Response) (*model.ErrorWithStatusCode, *model.Usage) {
+	defer resp.Body.Close()
+
+	// Set headers for streaming
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+	c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+	c.Writer.WriteHeader(resp.StatusCode)
+
+	// Stream the response directly without conversion
+	var usage model.Usage
+	scanner := bufio.NewScanner(resp.Body)
+	for scanner.Scan() {
+		data := scanner.Text()
+		if len(data) < 6 || !strings.HasPrefix(data, "data:") {
+			continue
+		}
+
+		// Parse usage information if available
+		if strings.Contains(data, "\"usage\":") {
+			var eventData map[string]interface{}
+			jsonData := strings.TrimPrefix(data, "data:")
+			jsonData = strings.TrimSpace(jsonData)
+			if err := json.Unmarshal([]byte(jsonData), &eventData); err == nil {
+				if usageData, ok := eventData["usage"].(map[string]interface{}); ok {
+					if inputTokens, ok := usageData["input_tokens"].(float64); ok {
+						usage.PromptTokens = int(inputTokens)
+					}
+					if outputTokens, ok := usageData["output_tokens"].(float64); ok {
+						usage.CompletionTokens = int(outputTokens)
+						usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+					}
+				}
+			}
+		}
+
+		// Write data directly to the response
+		c.Writer.WriteString(data + "\n")
+		c.Writer.Flush()
+	}
+
+	if err := scanner.Err(); err != nil {
+		return openai.ErrorWrapper(err, "stream_read_failed", http.StatusInternalServerError), nil
+	}
+
 	return nil, &usage
 }

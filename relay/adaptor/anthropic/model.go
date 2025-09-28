@@ -1,5 +1,10 @@
 package anthropic
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // https://docs.anthropic.com/claude/reference/messages_post
 
 type Metadata struct {
@@ -41,18 +46,92 @@ type InputSchema struct {
 	Required   any    `json:"required,omitempty"`
 }
 
+// SystemPrompt can handle both string and array formats for the system field
+type SystemPrompt struct {
+	value interface{}
+}
+
+// UnmarshalJSON implements json.Unmarshaler to handle both string and array formats
+func (s *SystemPrompt) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string first
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		s.value = str
+		return nil
+	}
+
+	// If that fails, try to unmarshal as array
+	var arr []interface{}
+	if err := json.Unmarshal(data, &arr); err == nil {
+		s.value = arr
+		return nil
+	}
+
+	return fmt.Errorf("system field must be either a string or an array")
+}
+
+// MarshalJSON implements json.Marshaler
+func (s SystemPrompt) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.value)
+}
+
+// String returns the system prompt as a string
+func (s SystemPrompt) String() string {
+	if s.value == nil {
+		return ""
+	}
+
+	switch v := s.value.(type) {
+	case string:
+		return v
+	case []interface{}:
+		// Convert array to string by concatenating text content
+		var result string
+		for _, item := range v {
+			if itemMap, ok := item.(map[string]interface{}); ok {
+				if text, exists := itemMap["text"]; exists {
+					if textStr, ok := text.(string); ok {
+						result += textStr + " "
+					}
+				}
+			} else if str, ok := item.(string); ok {
+				result += str + " "
+			}
+		}
+		return result
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// IsEmpty returns true if the system prompt is empty
+func (s SystemPrompt) IsEmpty() bool {
+	if s.value == nil {
+		return true
+	}
+
+	switch v := s.value.(type) {
+	case string:
+		return v == ""
+	case []interface{}:
+		return len(v) == 0
+	default:
+		return false
+	}
+}
+
 type Request struct {
-	Model         string    `json:"model"`
-	Messages      []Message `json:"messages"`
-	System        string    `json:"system,omitempty"`
-	MaxTokens     int       `json:"max_tokens,omitempty"`
-	StopSequences []string  `json:"stop_sequences,omitempty"`
-	Stream        bool      `json:"stream,omitempty"`
-	Temperature   *float64  `json:"temperature,omitempty"`
-	TopP          *float64  `json:"top_p,omitempty"`
-	TopK          int       `json:"top_k,omitempty"`
-	Tools         []Tool    `json:"tools,omitempty"`
-	ToolChoice    any       `json:"tool_choice,omitempty"`
+	Model         string       `json:"model"`
+	Messages      []Message    `json:"messages"`
+	System        SystemPrompt `json:"system,omitempty"`
+	MaxTokens     int          `json:"max_tokens,omitempty"`
+	StopSequences []string     `json:"stop_sequences,omitempty"`
+	Stream        bool         `json:"stream,omitempty"`
+	Temperature   *float64     `json:"temperature,omitempty"`
+	TopP          *float64     `json:"top_p,omitempty"`
+	TopK          int          `json:"top_k,omitempty"`
+	Tools         []Tool       `json:"tools,omitempty"`
+	ToolChoice    any          `json:"tool_choice,omitempty"`
 	//Metadata    `json:"metadata,omitempty"`
 }
 

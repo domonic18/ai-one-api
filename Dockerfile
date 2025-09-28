@@ -4,9 +4,10 @@ WORKDIR /web
 COPY ./VERSION .
 COPY ./web .
 
-RUN npm install --prefix /web/default & \
-    npm install --prefix /web/berry & \
-    npm install --prefix /web/air & \
+RUN npm config set registry https://registry.npmmirror.com && \
+    npm install --prefix /web/default --legacy-peer-deps --retry 5 & \
+    npm install --prefix /web/berry --legacy-peer-deps --retry 5 & \
+    npm install --prefix /web/air --legacy-peer-deps --retry 5 & \
     wait
 
 RUN DISABLE_ESLINT_PLUGIN='true' REACT_APP_VERSION=$(cat ./VERSION) npm run build --prefix /web/default & \
@@ -24,12 +25,14 @@ RUN apk add --no-cache \
 
 ENV GO111MODULE=on \
     CGO_ENABLED=1 \
-    GOOS=linux
+    GOOS=linux \
+    GOPROXY=https://goproxy.cn,direct \
+    GOSUMDB=off
 
 WORKDIR /build
 
 ADD go.mod go.sum ./
-RUN go mod download
+RUN go mod download -x
 
 COPY . .
 COPY --from=builder /web/build ./web/build
