@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -128,6 +129,40 @@ func getAndValidateAnthropicRequest(c *gin.Context) (*anthropic.Request, error) 
 		anthropicRequest.MaxTokens = 4096 // default max tokens
 	}
 
+	// Filter out messages with empty content to prevent API errors
+	var validMessages []anthropic.Message
+	ctx := c.Request.Context()
+
+	for i, message := range anthropicRequest.Messages {
+		hasContent := false
+
+		// Check if message has any non-empty content
+		for _, content := range message.Content.ToContentArray() {
+			if content.Type == "text" && strings.TrimSpace(content.Text) != "" {
+				hasContent = true
+				break
+			} else if content.Type != "text" && content.Type != "" {
+				// Non-text content (like images, tool_use, tool_result) is considered valid
+				hasContent = true
+				break
+			}
+		}
+
+		if hasContent {
+			validMessages = append(validMessages, message)
+		} else {
+			logger.Warnf(ctx, "Filtered out message at index %d with empty content (role: %s)", i, message.Role)
+		}
+	}
+
+	// Update the request with filtered messages
+	anthropicRequest.Messages = validMessages
+
+	// Ensure we still have at least one message after filtering
+	if len(anthropicRequest.Messages) == 0 {
+		return nil, fmt.Errorf("no valid messages found after filtering empty content")
+	}
+
 	return anthropicRequest, nil
 }
 
@@ -161,7 +196,7 @@ func estimateAnthropicTokens(request *anthropic.Request) int {
 
 	// Count tokens in messages
 	for _, message := range request.Messages {
-		for _, content := range message.Content {
+		for _, content := range message.Content.ToContentArray() {
 			if content.Type == "text" {
 				totalTokens += len(content.Text) / CHARS_PER_TOKEN
 			}
