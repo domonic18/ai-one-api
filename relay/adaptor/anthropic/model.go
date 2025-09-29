@@ -29,9 +29,58 @@ type Content struct {
 	ToolUseId string `json:"tool_use_id,omitempty"`
 }
 
+// MessageContent can handle both string and array formats for the content field
+type MessageContent struct {
+	value interface{}
+}
+
+// UnmarshalJSON implements json.Unmarshaler to handle both string and array formats
+func (m *MessageContent) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as string first
+	var str string
+	if err := json.Unmarshal(data, &str); err == nil {
+		m.value = str
+		return nil
+	}
+
+	// If that fails, try to unmarshal as array of Content
+	var arr []Content
+	if err := json.Unmarshal(data, &arr); err == nil {
+		m.value = arr
+		return nil
+	}
+
+	return fmt.Errorf("message content must be either a string or an array of content blocks")
+}
+
+// MarshalJSON implements json.Marshaler
+func (m MessageContent) MarshalJSON() ([]byte, error) {
+	return json.Marshal(m.value)
+}
+
+// ToContentArray converts the message content to a []Content array
+func (m MessageContent) ToContentArray() []Content {
+	if m.value == nil {
+		return []Content{}
+	}
+
+	switch v := m.value.(type) {
+	case string:
+		// Convert string to a single text content block
+		return []Content{{
+			Type: "text",
+			Text: v,
+		}}
+	case []Content:
+		return v
+	default:
+		return []Content{}
+	}
+}
+
 type Message struct {
-	Role    string    `json:"role"`
-	Content []Content `json:"content"`
+	Role    string         `json:"role"`
+	Content MessageContent `json:"content"`
 }
 
 type Tool struct {
@@ -146,15 +195,15 @@ type Error struct {
 }
 
 type Response struct {
-	Id           string    `json:"id"`
-	Type         string    `json:"type"`
-	Role         string    `json:"role"`
-	Content      []Content `json:"content"`
-	Model        string    `json:"model"`
-	StopReason   *string   `json:"stop_reason"`
-	StopSequence *string   `json:"stop_sequence"`
-	Usage        Usage     `json:"usage"`
-	Error        Error     `json:"error"`
+	Id           string         `json:"id"`
+	Type         string         `json:"type"`
+	Role         string         `json:"role"`
+	Content      MessageContent `json:"content"`
+	Model        string         `json:"model"`
+	StopReason   *string        `json:"stop_reason"`
+	StopSequence *string        `json:"stop_sequence"`
+	Usage        Usage          `json:"usage"`
+	Error        Error          `json:"error"`
 }
 
 type Delta struct {

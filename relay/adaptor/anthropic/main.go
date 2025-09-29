@@ -107,10 +107,12 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *Request {
 		claudeMessage := Message{
 			Role: message.Role,
 		}
-		var content Content
+		var contents []Content
 		if message.IsStringContent() {
-			content.Type = "text"
-			content.Text = message.StringContent()
+			content := Content{
+				Type: "text",
+				Text: message.StringContent(),
+			}
 			if message.Role == "tool" {
 				claudeMessage.Role = "user"
 				content.Type = "tool_result"
@@ -118,21 +120,22 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *Request {
 				content.Text = ""
 				content.ToolUseId = message.ToolCallId
 			}
-			claudeMessage.Content = append(claudeMessage.Content, content)
+			contents = append(contents, content)
 			for i := range message.ToolCalls {
 				inputParam := make(map[string]any)
 				_ = json.Unmarshal([]byte(message.ToolCalls[i].Function.Arguments.(string)), &inputParam)
-				claudeMessage.Content = append(claudeMessage.Content, Content{
+				contents = append(contents, Content{
 					Type:  "tool_use",
 					Id:    message.ToolCalls[i].Id,
 					Name:  message.ToolCalls[i].Function.Name,
 					Input: inputParam,
 				})
 			}
+			claudeMessage.Content = MessageContent{value: contents}
 			claudeRequest.Messages = append(claudeRequest.Messages, claudeMessage)
 			continue
 		}
-		var contents []Content
+		contents = []Content{} // Reset the slice for reuse
 		openaiContent := message.ParseContent()
 		for _, part := range openaiContent {
 			var content Content
@@ -150,7 +153,7 @@ func ConvertRequest(textRequest model.GeneralOpenAIRequest) *Request {
 			}
 			contents = append(contents, content)
 		}
-		claudeMessage.Content = contents
+		claudeMessage.Content = MessageContent{value: contents}
 		claudeRequest.Messages = append(claudeRequest.Messages, claudeMessage)
 	}
 	return &claudeRequest
@@ -220,11 +223,12 @@ func StreamResponseClaude2OpenAI(claudeResponse *StreamResponse) (*openai.ChatCo
 
 func ResponseClaude2OpenAI(claudeResponse *Response) *openai.TextResponse {
 	var responseText string
-	if len(claudeResponse.Content) > 0 {
-		responseText = claudeResponse.Content[0].Text
+	contentArray := claudeResponse.Content.ToContentArray()
+	if len(contentArray) > 0 {
+		responseText = contentArray[0].Text
 	}
 	tools := make([]model.Tool, 0)
-	for _, v := range claudeResponse.Content {
+	for _, v := range contentArray {
 		if v.Type == "tool_use" {
 			args, _ := json.Marshal(v.Input)
 			tools = append(tools, model.Tool{
