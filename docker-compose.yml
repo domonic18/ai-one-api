@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: one-api
+    platform: linux/amd64
     restart: always
     command: --log-dir /app/logs
     ports:

@@ -11,6 +11,14 @@ import (
 	"github.com/songquanpeng/one-api/relay/adaptor"
 	"github.com/songquanpeng/one-api/relay/meta"
 	"github.com/songquanpeng/one-api/relay/model"
+	"github.com/songquanpeng/one-api/relay/relaymode"
+)
+
+const (
+	// NativeAnthropicEndpoint is the endpoint for native Anthropic API
+	NativeAnthropicEndpoint = "/v1/messages"
+	// ThirdPartyAnthropicEndpoint is the endpoint for third-party providers supporting Anthropic protocol
+	ThirdPartyAnthropicEndpoint = "/anthropic/v1/messages"
 )
 
 type Adaptor struct {
@@ -21,7 +29,15 @@ func (a *Adaptor) Init(meta *meta.Meta) {
 }
 
 func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
-	return fmt.Sprintf("%s/v1/messages", meta.BaseURL), nil
+	// For native Anthropic API
+	if strings.Contains(meta.BaseURL, "api.anthropic.com") {
+		return fmt.Sprintf("%s%s", meta.BaseURL, NativeAnthropicEndpoint), nil
+	}
+
+	// For third-party providers supporting Anthropic protocol (like DeepSeek)
+	// They typically expose the endpoint at /anthropic/v1/messages
+	baseURL := strings.TrimSuffix(meta.BaseURL, "/")
+	return fmt.Sprintf("%s%s", baseURL, ThirdPartyAnthropicEndpoint), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Request, meta *meta.Meta) error {
@@ -47,6 +63,15 @@ func (a *Adaptor) ConvertRequest(c *gin.Context, relayMode int, request *model.G
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
+
+	// For native Anthropic protocol requests, return the request as-is (no conversion needed)
+	if relayMode == relaymode.AnthropicMessages {
+		// The request should already be in Anthropic format, so we pass it through
+		// This will be handled by the caller which already has the anthropic request
+		return request, nil
+	}
+
+	// For OpenAI to Anthropic conversion (existing functionality)
 	return ConvertRequest(*request), nil
 }
 
@@ -62,6 +87,17 @@ func (a *Adaptor) DoRequest(c *gin.Context, meta *meta.Meta, requestBody io.Read
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, meta *meta.Meta) (usage *model.Usage, err *model.ErrorWithStatusCode) {
+	// For native Anthropic protocol requests, handle response directly without conversion
+	if meta.Mode == relaymode.AnthropicMessages {
+		if meta.IsStream {
+			err, usage = DirectStreamHandler(c, resp)
+		} else {
+			err, usage = DirectHandler(c, resp, meta.PromptTokens, meta.ActualModelName)
+		}
+		return
+	}
+
+	// For OpenAI to Anthropic conversion (existing functionality)
 	if meta.IsStream {
 		err, usage = StreamHandler(c, resp)
 	} else {
