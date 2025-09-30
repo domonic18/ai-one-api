@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -88,7 +87,18 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	logger.Debugf(ctx, "Received response - Status: %d", resp.StatusCode)
 
 	if isErrorHappened(meta, resp) {
-		logger.Errorf(ctx, "Error detected in response")
+		logger.Errorf(ctx, "Error detected in response - Status: %d", resp.StatusCode)
+
+		// Read response body for detailed error logging
+		if resp.Body != nil {
+			bodyBytes, readErr := io.ReadAll(resp.Body)
+			if readErr == nil {
+				logger.Errorf(ctx, "Error response body: %s", string(bodyBytes))
+				// Recreate the body for further processing
+				resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			}
+		}
+
 		billing.ReturnPreConsumedQuota(ctx, preConsumedQuota, meta.TokenId)
 		return RelayErrorHandler(resp)
 	}
@@ -112,13 +122,17 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 }
 
 func getAndValidateAnthropicRequest(c *gin.Context) (*anthropic.Request, error) {
+	ctx := c.Request.Context()
 	anthropicRequest := &anthropic.Request{}
 	err := common.UnmarshalBodyReusable(c, anthropicRequest)
 	if err != nil {
+		logger.Errorf(ctx, "Failed to unmarshal Anthropic request: %s", err.Error())
 		return nil, err
 	}
 
-	// Basic validation
+	logger.Debugf(ctx, "Successfully parsed Anthropic request with %d messages", len(anthropicRequest.Messages))
+
+	// Basic validation only - minimal intervention
 	if anthropicRequest.Model == "" {
 		return nil, fmt.Errorf("model is required")
 	}
@@ -129,38 +143,24 @@ func getAndValidateAnthropicRequest(c *gin.Context) (*anthropic.Request, error) 
 		anthropicRequest.MaxTokens = 4096 // default max tokens
 	}
 
-	// Filter out messages with empty content to prevent API errors
-	var validMessages []anthropic.Message
-	ctx := c.Request.Context()
+	// Add detailed logging for debugging without filtering messages
+	logger.Debugf(ctx, "Request details - Model: %s, MaxTokens: %d, Messages: %d",
+		anthropicRequest.Model, anthropicRequest.MaxTokens, len(anthropicRequest.Messages))
 
 	for i, message := range anthropicRequest.Messages {
-		hasContent := false
+		contentArray := message.Content.ToContentArray()
+		logger.Debugf(ctx, "Message[%d] - Role: %s, Content blocks: %d", i, message.Role, len(contentArray))
 
-		// Check if message has any non-empty content
-		for _, content := range message.Content.ToContentArray() {
-			if content.Type == "text" && strings.TrimSpace(content.Text) != "" {
-				hasContent = true
-				break
-			} else if content.Type != "text" && content.Type != "" {
-				// Non-text content (like images, tool_use, tool_result) is considered valid
-				hasContent = true
-				break
+		for j, content := range contentArray {
+			if content.Type == "tool_use" {
+				logger.Debugf(ctx, "  Content[%d] - Type: %s, ID: %s, Name: %s", j, content.Type, content.Id, content.Name)
+			} else if content.Type == "tool_result" {
+				logger.Debugf(ctx, "  Content[%d] - Type: %s, ToolUseId: %s, Content length: %d",
+					j, content.Type, content.ToolUseId, len(content.Content))
+			} else {
+				logger.Debugf(ctx, "  Content[%d] - Type: %s, Text length: %d", j, content.Type, len(content.Text))
 			}
 		}
-
-		if hasContent {
-			validMessages = append(validMessages, message)
-		} else {
-			logger.Warnf(ctx, "Filtered out message at index %d with empty content (role: %s)", i, message.Role)
-		}
-	}
-
-	// Update the request with filtered messages
-	anthropicRequest.Messages = validMessages
-
-	// Ensure we still have at least one message after filtering
-	if len(anthropicRequest.Messages) == 0 {
-		return nil, fmt.Errorf("no valid messages found after filtering empty content")
 	}
 
 	return anthropicRequest, nil
@@ -170,10 +170,14 @@ func getAnthropicRequestBody(c *gin.Context, anthropicRequest *anthropic.Request
 	// For anthropic native requests, we marshal the request back to JSON
 	jsonData, err := json.Marshal(anthropicRequest)
 	if err != nil {
-		logger.Debugf(c.Request.Context(), "anthropic request json_marshal_failed: %s\n", err.Error())
+		logger.Errorf(c.Request.Context(), "Failed to marshal anthropic request: %s", err.Error())
 		return nil, err
 	}
-	logger.Debugf(c.Request.Context(), "anthropic request: \n%s", string(jsonData))
+
+	ctx := c.Request.Context()
+	logger.Debugf(ctx, "Final request body size: %d bytes", len(jsonData))
+	logger.Debugf(ctx, "Final request body: %s", string(jsonData))
+
 	return bytes.NewBuffer(jsonData), nil
 }
 

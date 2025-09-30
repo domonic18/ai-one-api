@@ -36,6 +36,12 @@ type MessageContent struct {
 
 // UnmarshalJSON implements json.Unmarshaler to handle both string and array formats
 func (m *MessageContent) UnmarshalJSON(data []byte) error {
+	// Skip empty data or null
+	if len(data) == 0 || string(data) == "null" {
+		m.value = ""
+		return nil
+	}
+
 	// Try to unmarshal as string first
 	var str string
 	if err := json.Unmarshal(data, &str); err == nil {
@@ -47,6 +53,14 @@ func (m *MessageContent) UnmarshalJSON(data []byte) error {
 	var arr []Content
 	if err := json.Unmarshal(data, &arr); err == nil {
 		m.value = arr
+		return nil
+	}
+
+	// For routing purposes, store raw JSON if we can't parse it
+	// This ensures we don't lose any data during forwarding
+	var raw json.RawMessage
+	if err := json.Unmarshal(data, &raw); err == nil {
+		m.value = raw
 		return nil
 	}
 
@@ -73,6 +87,14 @@ func (m MessageContent) ToContentArray() []Content {
 		}}
 	case []Content:
 		return v
+	case json.RawMessage:
+		// Try to parse raw JSON as Content array
+		var arr []Content
+		if err := json.Unmarshal(v, &arr); err == nil {
+			return arr
+		}
+		// If that fails, return empty array to avoid breaking the routing
+		return []Content{}
 	default:
 		return []Content{}
 	}
