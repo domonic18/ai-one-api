@@ -117,7 +117,7 @@ func RelayAnthropicHelper(c *gin.Context) *model.ErrorWithStatusCode {
 	placeholderRequest := &model.GeneralOpenAIRequest{
 		Model: anthropicRequest.Model,
 	}
-	go postConsumeQuota(ctx, usage, meta, placeholderRequest, ratio, preConsumedQuota, modelRatio, groupRatio, false)
+	go postConsumeQuota(ctx, usage, meta, placeholderRequest, ratio, preConsumedQuota, modelRatio, groupRatio, false, "")
 	return nil
 }
 
