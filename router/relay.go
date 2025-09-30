@@ -75,7 +75,7 @@ func SetRelayRouter(router *gin.Engine) {
 
 	// Anthropic API compatibility - https://docs.anthropic.com/claude/reference/
 	anthropicRouter := router.Group("/anthropic")
-	anthropicRouter.Use(middleware.RelayPanicRecover(), middleware.TokenAuth(), middleware.Distribute())
+	anthropicRouter.Use(middleware.RelayPanicRecover(), middleware.RequestId(), middleware.TokenAuth(), identity.Identity(), middleware.Distribute())
 	{
 		// Models API
 		anthropicRouter.GET("/v1/models", controller.ListModels)
