@@ -32,7 +32,6 @@ pipeline {
                     
                         echo "检查Docker环境..."
                         docker --version
-                        docker info --format '{{.ServerVersion}}'
                         
                         echo "检查可用端口..."
                         netstat -tlnp | grep -E ":(3307|6380)" || echo "端口可用"
