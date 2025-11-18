@@ -482,37 +482,87 @@ func DirectStreamHandler(c *gin.Context, resp *http.Response) (*model.ErrorWithS
 	// Stream the response directly without conversion
 	var usage model.Usage
 	scanner := bufio.NewScanner(resp.Body)
+
+	// 优化: 一次性设置scanner缓冲区大小，减少扩容开销
+	buf := make([]byte, StreamBufferInitialSize)
+	scanner.Buffer(buf, StreamBufferMaxSize)
+
+	// 优化: 使用write buffer累积数据，减少flush次数
+	var writeBuffer strings.Builder
+
 	for scanner.Scan() {
 		data := scanner.Text()
-		if len(data) < 6 || !strings.HasPrefix(data, "data:") {
+		if len(data) < MinDataPrefixLength || !strings.HasPrefix(data, "data:") {
 			continue
 		}
 
-		// Parse usage information if available
-		if strings.Contains(data, "\"usage\":") {
-			var eventData map[string]interface{}
-			jsonData := strings.TrimPrefix(data, "data:")
-			jsonData = strings.TrimSpace(jsonData)
-			if err := json.Unmarshal([]byte(jsonData), &eventData); err == nil {
-				if usageData, ok := eventData["usage"].(map[string]interface{}); ok {
-					if inputTokens, ok := usageData["input_tokens"].(float64); ok {
-						usage.PromptTokens = int(inputTokens)
-					}
-					if outputTokens, ok := usageData["output_tokens"].(float64); ok {
-						usage.CompletionTokens = int(outputTokens)
-						usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+		// 优化: 只在特定事件类型时解析JSON，减少80-90%的解析开销
+		needFlush := false
+		dataLen := len(data)
+
+		// 快速判断是否为message_start事件（包含input_tokens）
+		if dataLen > MinEventDataLength {
+			// 安全地获取检查范围，避免slice越界
+			checkRange := dataLen
+			if dataLen > EventTypeCheckRange {
+				checkRange = EventTypeCheckRange
+			}
+			if strings.Contains(data[:checkRange], "message_start") {
+				jsonData := strings.TrimPrefix(data, "data:")
+				jsonData = strings.TrimSpace(jsonData)
+
+				var eventData map[string]interface{}
+				if err := json.Unmarshal([]byte(jsonData), &eventData); err == nil {
+					if msg, ok := eventData["message"].(map[string]interface{}); ok {
+						if usageData, ok := msg["usage"].(map[string]interface{}); ok {
+							if inputTokens, ok := usageData["input_tokens"].(float64); ok {
+								usage.PromptTokens = int(inputTokens)
+							}
+						}
 					}
 				}
+				needFlush = true
+			} else if dataLen > MinEventDataLength && strings.Contains(data, "message_delta") {
+				// message_delta事件可能包含output_tokens
+				jsonData := strings.TrimPrefix(data, "data:")
+				jsonData = strings.TrimSpace(jsonData)
+
+				var eventData map[string]interface{}
+				if err := json.Unmarshal([]byte(jsonData), &eventData); err == nil {
+					if usageData, ok := eventData["usage"].(map[string]interface{}); ok {
+						if outputTokens, ok := usageData["output_tokens"].(float64); ok {
+							usage.CompletionTokens += int(outputTokens)
+							usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+						}
+					}
+				}
+				needFlush = true
+			} else if strings.Contains(data, "content_block_delta") {
+				// content_block_delta是内容更新事件，需要及时flush以保证实时性
+				needFlush = true
 			}
 		}
 
-		// Write data directly to the response
-		c.Writer.WriteString(data + "\n")
-		c.Writer.Flush()
+		// 累积数据到write buffer
+		writeBuffer.WriteString(data)
+		writeBuffer.WriteByte('\n')
+
+		// 优化: 智能flush策略 - 只在关键事件或缓冲区满时flush
+		if needFlush || writeBuffer.Len() >= StreamFlushThreshold {
+			c.Writer.WriteString(writeBuffer.String())
+			c.Writer.Flush()
+			writeBuffer.Reset()
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		return openai.ErrorWrapper(err, "stream_read_failed", http.StatusInternalServerError), nil
+	}
+
+	// 优化: 刷新剩余数据
+	if writeBuffer.Len() > 0 {
+		c.Writer.WriteString(writeBuffer.String())
+		c.Writer.Flush()
 	}
 
 	return nil, &usage

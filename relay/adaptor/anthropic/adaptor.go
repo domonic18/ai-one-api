@@ -34,9 +34,20 @@ func (a *Adaptor) GetRequestURL(meta *meta.Meta) (string, error) {
 		return fmt.Sprintf("%s%s", meta.BaseURL, NativeAnthropicEndpoint), nil
 	}
 
-	// For third-party providers supporting Anthropic protocol (like DeepSeek)
-	// They typically expose the endpoint at /anthropic/v1/messages
+	// For third-party providers supporting Anthropic protocol
+	// Common scenario: BaseURL ends with /v1 (e.g., https://api.deepseek.com/v1)
+	// ThirdPartyAnthropicEndpoint is /anthropic/v1/messages
+	// We need to avoid: /v1/anthropic/v1/messages (double /v1)
 	baseURL := strings.TrimSuffix(meta.BaseURL, "/")
+
+	// Smart handling: if ThirdPartyAnthropicEndpoint already contains /v1/,
+	// and baseURL ends with /v1, remove it from baseURL to prevent duplication
+	if strings.HasPrefix(ThirdPartyAnthropicEndpoint, "/") &&
+		strings.Contains(ThirdPartyAnthropicEndpoint, "/v1/") &&
+		strings.HasSuffix(baseURL, "/v1") {
+		baseURL = strings.TrimSuffix(baseURL, "/v1")
+	}
+
 	return fmt.Sprintf("%s%s", baseURL, ThirdPartyAnthropicEndpoint), nil
 }
 
